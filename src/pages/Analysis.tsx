@@ -184,11 +184,23 @@ export default function Analysis() {
         return;
       }
 
+      // Validate job_id before polling
+      if (!data?.job_id) {
+        console.error('No job_id received:', data);
+        toast.error(language === 'tr' 
+          ? 'Analiz servisi yanıt vermedi. Lütfen tekrar deneyin.' 
+          : 'Analysis service did not respond. Please try again.');
+        setIsAnalyzing(false);
+        return;
+      }
+
       console.log('Analysis started, job_id:', data.job_id);
       setStatusMessage(language === 'tr' ? 'Analiz ediliyor...' : 'Analyzing...');
       
-      // Start polling
-      pollForResult(data.job_id);
+      // Wait 3 seconds before starting poll (give Gateway time to register the job)
+      setTimeout(() => {
+        pollForResult(data.job_id);
+      }, 3000);
     } catch (err) {
       console.error('Error starting analysis:', err);
       toast.error(language === 'tr' ? 'Bir hata oluştu' : 'An error occurred');
@@ -270,10 +282,17 @@ export default function Analysis() {
       fetchRadiograph().then((data) => {
         if (data && data.analysis_status === 'pending') {
           startAnalysis(data);
-        } else if (data && data.analysis_status === 'processing' && data.job_id) {
-          setIsAnalyzing(true);
-          setStatusMessage(language === 'tr' ? 'Analiz devam ediyor...' : 'Analysis in progress...');
-          pollForResult(data.job_id);
+        } else if (data && data.analysis_status === 'processing') {
+          if (data.job_id) {
+            setIsAnalyzing(true);
+            setStatusMessage(language === 'tr' ? 'Analiz devam ediyor...' : 'Analysis in progress...');
+            pollForResult(data.job_id);
+          } else {
+            // job_id is missing, previous analysis failed
+            toast.warning(language === 'tr' 
+              ? 'Önceki analiz başarısız oldu. Yeniden analiz başlatın.' 
+              : 'Previous analysis failed. Please restart analysis.');
+          }
         }
       });
     }
