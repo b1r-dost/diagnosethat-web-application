@@ -19,6 +19,7 @@ import {
 } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { format } from 'date-fns';
+import { QuickAddPatientDialog } from '@/components/dashboard/QuickAddPatientDialog';
 
 interface Patient {
   id: string;
@@ -67,7 +68,7 @@ export default function Dashboard() {
     thisMonthPatients: 0 
   });
   const [dataLoading, setDataLoading] = useState(true);
-
+  const [quickAddOpen, setQuickAddOpen] = useState(false);
   useEffect(() => {
     if (!isLoading && !user) {
       navigate('/auth?mode=login');
@@ -297,12 +298,10 @@ export default function Dashboard() {
                     {language === 'tr' ? 'Son eklenen hastalar' : 'Recently added patients'}
                   </CardDescription>
                 </div>
-                <Button asChild>
-                  <Link to="/patients/new">
+                <Button onClick={() => setQuickAddOpen(true)}>
                     <UserPlus className="h-4 w-4 mr-2" />
                     {t.dashboard.addPatient}
-                  </Link>
-                </Button>
+                  </Button>
               </CardHeader>
               <CardContent>
                 {dataLoading ? (
@@ -398,6 +397,13 @@ export default function Dashboard() {
             </CardContent>
           </Card>
         </div>
+
+        {/* Quick Add Patient Dialog */}
+        <QuickAddPatientDialog 
+          open={quickAddOpen} 
+          onOpenChange={setQuickAddOpen}
+          onSuccess={() => fetchDashboardData()}
+        />
       </div>
     </MainLayout>
   );
