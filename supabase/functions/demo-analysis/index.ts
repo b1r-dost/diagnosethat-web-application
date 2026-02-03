@@ -43,20 +43,20 @@ Deno.serve(async (req) => {
 
       console.log('Submitting demo analysis for clinic:', body.clinic_ref);
 
-      // Call Gateway API to submit analysis
+      // Call Gateway API to submit analysis using multipart/form-data
+      const formData = new FormData();
+      formData.append('image_base64', body.image_base64);
+      formData.append('doctor_ref', 'MainPageDemo');
+      formData.append('clinic_ref', body.clinic_ref || 'DiagnoseThat');
+      formData.append('patient_ref', 'DemoPatient');
+      formData.append('radiograph_type', body.radiograph_type || 'panoramic');
+
       const submitResponse = await fetch(`${GATEWAY_API_URL}/v1/submit-analysis`, {
         method: 'POST',
         headers: {
-          'Content-Type': 'application/json',
           'X-API-Key': GATEWAY_API_KEY,
         },
-        body: JSON.stringify({
-          image_base64: body.image_base64,
-          doctor_ref: 'MainPageDemo',
-          clinic_ref: body.clinic_ref || 'DiagnoseThat',
-          patient_ref: 'DemoPatient',
-          radiograph_type: body.radiograph_type || 'panoramic',
-        }),
+        body: formData,
       });
 
       if (!submitResponse.ok) {
