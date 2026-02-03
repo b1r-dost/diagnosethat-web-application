@@ -102,14 +102,18 @@ export function DemoAnalysis() {
 
       const submitResult = await submitResponse.json();
 
-      if (!submitResult.job_id) {
-        throw new Error('No job_id received');
+      // Accept both flat and nested response shapes
+      const jobId = submitResult.job_id ?? submitResult.data?.job_id;
+
+      if (!jobId) {
+        console.error('No job_id in response:', submitResult);
+        throw new Error(submitResult.error || 'No job_id received');
       }
 
       setStatusMessage(language === 'tr' ? 'Analiz yapılıyor...' : 'Analyzing...');
 
       // Start polling for result
-      pollForResult(submitResult.job_id);
+      pollForResult(jobId);
     } catch (err) {
       console.error('Analysis error:', err);
       setError(t.home.demo.uploadError);
@@ -142,14 +146,19 @@ export function DemoAnalysis() {
 
         const pollResult = await pollResponse.json();
 
-        if (pollResult.status === 'completed' && pollResult.result) {
+        // Accept both flat and nested response shapes
+        const status = pollResult.status ?? pollResult.data?.status;
+        const result = pollResult.result ?? pollResult.data?.result;
+        const pollError = pollResult.error ?? pollResult.data?.error;
+
+        if (status === 'completed' && result) {
           clearInterval(pollingRef.current!);
-          setResult(pollResult.result);
+          setResult(result);
           setIsAnalyzing(false);
           setStatusMessage('');
-        } else if (pollResult.status === 'error') {
+        } else if (status === 'error') {
           clearInterval(pollingRef.current!);
-          setError(pollResult.error || t.home.demo.uploadError);
+          setError(pollError || t.home.demo.uploadError);
           setIsAnalyzing(false);
         }
         // If pending/processing, continue polling
