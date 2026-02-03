@@ -110,20 +110,20 @@ Deno.serve(async (req) => {
       
       console.log('Image converted to base64, size:', base64.length);
 
-      // Submit to Gateway API
+      // Submit to Gateway API using multipart/form-data
+      const formData = new FormData();
+      formData.append('image_base64', base64);
+      formData.append('doctor_ref', profile.doctor_ref || 'UnknownDoctor');
+      formData.append('clinic_ref', 'DiagnoseThat');
+      formData.append('patient_ref', (radiograph as any).patients?.patient_ref || 'UnknownPatient');
+      formData.append('radiograph_type', radiograph.radiograph_type || 'panoramic');
+
       const submitResponse = await fetch(`${GATEWAY_API_URL}/v1/submit-analysis`, {
         method: 'POST',
         headers: {
-          'Content-Type': 'application/json',
           'X-API-Key': GATEWAY_API_KEY,
         },
-        body: JSON.stringify({
-          image_base64: base64,
-          doctor_ref: profile.doctor_ref || 'UnknownDoctor',
-          clinic_ref: 'DiagnoseThat',
-          patient_ref: (radiograph as any).patients?.patient_ref || 'UnknownPatient',
-          radiograph_type: radiograph.radiograph_type || 'panoramic',
-        }),
+        body: formData,
       });
 
       if (!submitResponse.ok) {
