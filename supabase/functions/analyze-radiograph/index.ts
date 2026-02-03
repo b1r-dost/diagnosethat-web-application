@@ -115,7 +115,7 @@ Deno.serve(async (req) => {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${GATEWAY_API_KEY}`,
+          'X-API-Key': GATEWAY_API_KEY,
         },
         body: JSON.stringify({
           image_base64: base64,
@@ -173,7 +173,7 @@ Deno.serve(async (req) => {
         method: 'GET',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${GATEWAY_API_KEY}`,
+          'X-API-Key': GATEWAY_API_KEY,
         },
       });
 
