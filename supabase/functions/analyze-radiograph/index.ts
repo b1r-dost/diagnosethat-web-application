@@ -112,7 +112,7 @@ Deno.serve(async (req) => {
 
       // Submit to Gateway API using multipart/form-data
       const formData = new FormData();
-      formData.append('image_base64', base64);
+      formData.append('image', base64);
       formData.append('doctor_ref', profile.doctor_ref || 'UnknownDoctor');
       formData.append('clinic_ref', 'DiagnoseThat');
       formData.append('patient_ref', (radiograph as any).patients?.patient_ref || 'UnknownPatient');
