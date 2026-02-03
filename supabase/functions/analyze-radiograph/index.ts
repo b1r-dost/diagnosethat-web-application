@@ -155,8 +155,10 @@ Deno.serve(async (req) => {
       const submitResult = await submitResponse.json();
       console.log('Gateway API raw response:', JSON.stringify(submitResult));
 
-      // Try multiple possible field names for job_id
-      const jobId = submitResult.job_id || submitResult.jobId || submitResult.id || submitResult.task_id || submitResult.request_id;
+      // Try multiple possible field names for job_id (including nested in data object)
+      const jobId = submitResult.job_id || submitResult.jobId || submitResult.id || 
+                    submitResult.data?.job_id || submitResult.data?.jobId || submitResult.data?.id ||
+                    submitResult.task_id || submitResult.request_id;
       console.log('Extracted job_id:', jobId);
 
       if (!jobId) {
