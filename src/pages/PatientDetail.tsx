@@ -5,6 +5,9 @@ import { useI18n } from '@/lib/i18n';
 import { useAuth } from '@/hooks/useAuth';
 import { supabase } from '@/integrations/supabase/client';
 import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Textarea } from '@/components/ui/textarea';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
 import { 
@@ -17,8 +20,10 @@ import {
   Upload,
   Image as ImageIcon,
   Trash2,
-  ChevronDown,
-  ChevronUp
+  Pencil,
+  Save,
+  X,
+  Loader2
 } from 'lucide-react';
 import { format } from 'date-fns';
 import {
@@ -63,7 +68,16 @@ export default function PatientDetail() {
   const [patient, setPatient] = useState<Patient | null>(null);
   const [radiographs, setRadiographs] = useState<Radiograph[]>([]);
   const [isLoading, setIsLoading] = useState(true);
-  const [showDetails, setShowDetails] = useState(false);
+  const [isEditing, setIsEditing] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
+  const [formData, setFormData] = useState({
+    first_name: '',
+    last_name: '',
+    identity_number: '',
+    phone: '',
+    address: '',
+    birth_date: '',
+  });
 
   useEffect(() => {
     if (id && user && isDentist) {
@@ -71,6 +85,19 @@ export default function PatientDetail() {
       fetchRadiographs();
     }
   }, [id, user, isDentist]);
+
+  useEffect(() => {
+    if (patient) {
+      setFormData({
+        first_name: patient.first_name || '',
+        last_name: patient.last_name || '',
+        identity_number: patient.identity_number || '',
+        phone: patient.phone || '',
+        address: patient.address || '',
+        birth_date: patient.birth_date || '',
+      });
+    }
+  }, [patient]);
 
   const fetchPatient = async () => {
     try {
@@ -111,6 +138,65 @@ export default function PatientDetail() {
     } catch (err) {
       console.error('Error:', err);
     }
+  };
+
+  const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
+    setFormData(prev => ({
+      ...prev,
+      [e.target.name]: e.target.value,
+    }));
+  };
+
+  const handleSaveEdit = async () => {
+    if (!patient || !formData.first_name.trim() || !formData.last_name.trim()) {
+      toast.error(language === 'tr' ? 'Ad ve soyad zorunludur' : 'First name and last name are required');
+      return;
+    }
+
+    setIsSaving(true);
+    try {
+      const { error } = await supabase
+        .from('patients')
+        .update({
+          first_name: formData.first_name.trim(),
+          last_name: formData.last_name.trim(),
+          identity_number: formData.identity_number.trim() || null,
+          phone: formData.phone.trim() || null,
+          address: formData.address.trim() || null,
+          birth_date: formData.birth_date || null,
+          updated_at: new Date().toISOString(),
+        })
+        .eq('id', patient.id);
+
+      if (error) {
+        console.error('Error updating patient:', error);
+        toast.error(language === 'tr' ? 'Hasta güncellenemedi' : 'Failed to update patient');
+        return;
+      }
+
+      toast.success(language === 'tr' ? 'Hasta güncellendi' : 'Patient updated');
+      setIsEditing(false);
+      fetchPatient();
+    } catch (err) {
+      console.error('Error:', err);
+      toast.error(language === 'tr' ? 'Bir hata oluştu' : 'An error occurred');
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  const handleCancelEdit = () => {
+    if (patient) {
+      setFormData({
+        first_name: patient.first_name || '',
+        last_name: patient.last_name || '',
+        identity_number: patient.identity_number || '',
+        phone: patient.phone || '',
+        address: patient.address || '',
+        birth_date: patient.birth_date || '',
+      });
+    }
+    setIsEditing(false);
   };
 
   const handleDeletePatient = async () => {
@@ -198,22 +284,144 @@ export default function PatientDetail() {
                   <p className="text-muted-foreground">{patient.patient_ref}</p>
                 </div>
               </div>
-              <Button 
-                variant="ghost" 
-                size="sm"
-                onClick={() => setShowDetails(!showDetails)}
-              >
-                {showDetails ? (
-                  <ChevronUp className="h-4 w-4" />
-                ) : (
-                  <ChevronDown className="h-4 w-4" />
-                )}
-              </Button>
+              {!isEditing && (
+                <Button 
+                  variant="outline" 
+                  size="sm"
+                  onClick={() => setIsEditing(true)}
+                >
+                  <Pencil className="h-4 w-4 mr-2" />
+                  {language === 'tr' ? 'Düzenle' : 'Edit'}
+                </Button>
+              )}
             </div>
           </CardHeader>
           
-          {showDetails && (
-            <CardContent className="border-t pt-4">
+          <CardContent className="border-t pt-4">
+            {isEditing ? (
+              // Edit Mode
+              <div className="space-y-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="first_name">{t.patients.form.firstName} *</Label>
+                    <Input
+                      id="first_name"
+                      name="first_name"
+                      value={formData.first_name}
+                      onChange={handleChange}
+                      required
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="last_name">{t.patients.form.lastName} *</Label>
+                    <Input
+                      id="last_name"
+                      name="last_name"
+                      value={formData.last_name}
+                      onChange={handleChange}
+                      required
+                    />
+                  </div>
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="identity_number">{t.patients.form.identityNumber}</Label>
+                  <Input
+                    id="identity_number"
+                    name="identity_number"
+                    value={formData.identity_number}
+                    onChange={handleChange}
+                  />
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="phone">{t.patients.form.phone}</Label>
+                    <Input
+                      id="phone"
+                      name="phone"
+                      type="tel"
+                      value={formData.phone}
+                      onChange={handleChange}
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="birth_date">{t.patients.form.birthDate}</Label>
+                    <Input
+                      id="birth_date"
+                      name="birth_date"
+                      type="date"
+                      value={formData.birth_date}
+                      onChange={handleChange}
+                    />
+                  </div>
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="address">{t.patients.form.address}</Label>
+                  <Textarea
+                    id="address"
+                    name="address"
+                    value={formData.address}
+                    onChange={handleChange}
+                    rows={2}
+                  />
+                </div>
+
+                <div className="flex gap-2 pt-4">
+                  <Button
+                    variant="outline"
+                    onClick={handleCancelEdit}
+                    disabled={isSaving}
+                  >
+                    <X className="h-4 w-4 mr-2" />
+                    {t.common.cancel}
+                  </Button>
+                  <Button 
+                    onClick={handleSaveEdit} 
+                    disabled={isSaving}
+                    className="gradient-primary"
+                  >
+                    {isSaving ? (
+                      <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                    ) : (
+                      <Save className="h-4 w-4 mr-2" />
+                    )}
+                    {t.patients.form.save}
+                  </Button>
+                </div>
+
+                <div className="mt-6 pt-4 border-t">
+                  <AlertDialog>
+                    <AlertDialogTrigger asChild>
+                      <Button variant="destructive" size="sm">
+                        <Trash2 className="h-4 w-4 mr-2" />
+                        {t.common.delete}
+                      </Button>
+                    </AlertDialogTrigger>
+                    <AlertDialogContent>
+                      <AlertDialogHeader>
+                        <AlertDialogTitle>
+                          {language === 'tr' ? 'Hastayı Sil' : 'Delete Patient'}
+                        </AlertDialogTitle>
+                        <AlertDialogDescription>
+                          {language === 'tr' 
+                            ? 'Bu hastayı ve tüm röntgenlerini silmek istediğinizden emin misiniz? Bu işlem geri alınamaz.'
+                            : 'Are you sure you want to delete this patient and all their radiographs? This action cannot be undone.'}
+                        </AlertDialogDescription>
+                      </AlertDialogHeader>
+                      <AlertDialogFooter>
+                        <AlertDialogCancel>{t.common.cancel}</AlertDialogCancel>
+                        <AlertDialogAction onClick={handleDeletePatient}>
+                          {t.common.delete}
+                        </AlertDialogAction>
+                      </AlertDialogFooter>
+                    </AlertDialogContent>
+                  </AlertDialog>
+                </div>
+              </div>
+            ) : (
+              // View Mode
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 {patient.phone && (
                   <div className="flex items-center gap-3 text-sm">
@@ -239,38 +447,14 @@ export default function PatientDetail() {
                     <span>{patient.address}</span>
                   </div>
                 )}
+                {!patient.phone && !patient.birth_date && !patient.identity_number && !patient.address && (
+                  <p className="text-sm text-muted-foreground col-span-full">
+                    {language === 'tr' ? 'Ek bilgi girilmemiş.' : 'No additional information provided.'}
+                  </p>
+                )}
               </div>
-
-              <div className="mt-6 pt-4 border-t">
-                <AlertDialog>
-                  <AlertDialogTrigger asChild>
-                    <Button variant="destructive" size="sm">
-                      <Trash2 className="h-4 w-4 mr-2" />
-                      {t.common.delete}
-                    </Button>
-                  </AlertDialogTrigger>
-                  <AlertDialogContent>
-                    <AlertDialogHeader>
-                      <AlertDialogTitle>
-                        {language === 'tr' ? 'Hastayı Sil' : 'Delete Patient'}
-                      </AlertDialogTitle>
-                      <AlertDialogDescription>
-                        {language === 'tr' 
-                          ? 'Bu hastayı ve tüm röntgenlerini silmek istediğinizden emin misiniz? Bu işlem geri alınamaz.'
-                          : 'Are you sure you want to delete this patient and all their radiographs? This action cannot be undone.'}
-                      </AlertDialogDescription>
-                    </AlertDialogHeader>
-                    <AlertDialogFooter>
-                      <AlertDialogCancel>{t.common.cancel}</AlertDialogCancel>
-                      <AlertDialogAction onClick={handleDeletePatient}>
-                        {t.common.delete}
-                      </AlertDialogAction>
-                    </AlertDialogFooter>
-                  </AlertDialogContent>
-                </AlertDialog>
-              </div>
-            </CardContent>
-          )}
+            )}
+          </CardContent>
         </Card>
 
         {/* Radiographs Section */}
