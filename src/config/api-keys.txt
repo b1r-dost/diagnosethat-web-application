@@ -1,0 +1,4 @@
+# TEMPORARY API KEY FILE - DELETE BEFORE PRODUCTION
+# This key will be moved to Cloudflare Pages environment variables
+
+GATEWAY_API_KEY=dt_1714698d286ef9096ab04fa1396367466493881dff73df4ae4b91f613bb91423

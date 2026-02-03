@@ -7,6 +7,8 @@ const corsHeaders = {
 
 // Gateway API configuration
 const GATEWAY_API_URL = 'https://api.diagnosethat.net';
+// TEMPORARY: Hardcoded API key - will be moved to environment variable for Cloudflare Pages
+const GATEWAY_API_KEY = 'dt_1714698d286ef9096ab04fa1396367466493881dff73df4ae4b91f613bb91423';
 
 interface SubmitRequest {
   image_base64: string;
@@ -46,6 +48,7 @@ Deno.serve(async (req) => {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
+          'Authorization': `Bearer ${GATEWAY_API_KEY}`,
         },
         body: JSON.stringify({
           image_base64: body.image_base64,
@@ -92,6 +95,7 @@ Deno.serve(async (req) => {
         method: 'GET',
         headers: {
           'Content-Type': 'application/json',
+          'Authorization': `Bearer ${GATEWAY_API_KEY}`,
         },
       });
 
