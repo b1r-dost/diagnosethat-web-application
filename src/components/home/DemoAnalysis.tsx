@@ -221,9 +221,9 @@ export function DemoAnalysis() {
           ctx.moveTo(points[0][0], points[0][1]);
           points.forEach(point => ctx.lineTo(point[0], point[1]));
           ctx.closePath();
-          ctx.fillStyle = 'rgba(239, 68, 68, 0.35)';
+          ctx.fillStyle = 'rgba(239, 68, 68, 0.55)';
           ctx.fill();
-          ctx.strokeStyle = 'rgba(220, 38, 38, 0.8)';
+          ctx.strokeStyle = 'rgba(220, 38, 38, 1)';
           ctx.lineWidth = 2;
           ctx.stroke();
         }
