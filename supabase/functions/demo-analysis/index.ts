@@ -90,7 +90,8 @@ Deno.serve(async (req) => {
       }
 
       const submitResult = await submitResponse.json();
-      console.log('Analysis submitted, job_id:', submitResult.job_id);
+      console.log('Gateway API response:', JSON.stringify(submitResult));
+      console.log('Analysis submitted, job_id:', submitResult.job_id || submitResult.data?.job_id);
 
       return new Response(
         JSON.stringify(submitResult),

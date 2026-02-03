@@ -85,14 +85,7 @@ export function DemoAnalysis() {
     setStatusMessage(language === 'tr' ? 'Analiz başlatılıyor...' : 'Starting analysis...');
     
     try {
-      // Submit analysis to edge function
-      const { data: submitData, error: submitError } = await supabase.functions.invoke('demo-analysis', {
-        body: { image_base64: base64Data, clinic_ref: clinicRef },
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-      });
-
-      // Check if response contains query params issue - need to use different approach
+      // Submit analysis to edge function with action=submit
       const submitResponse = await fetch(
         `https://bllvnenslgntvkvgwgqh.supabase.co/functions/v1/demo-analysis?action=submit`,
         {
@@ -103,7 +96,8 @@ export function DemoAnalysis() {
       );
 
       if (!submitResponse.ok) {
-        throw new Error('Failed to submit analysis');
+        const errorData = await submitResponse.json();
+        throw new Error(errorData.error || 'Failed to submit analysis');
       }
 
       const submitResult = await submitResponse.json();
