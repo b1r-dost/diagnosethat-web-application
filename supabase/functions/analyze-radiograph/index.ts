@@ -153,13 +153,28 @@ Deno.serve(async (req) => {
       }
 
       const submitResult = await submitResponse.json();
-      console.log('Analysis submitted, job_id:', submitResult.job_id);
+      console.log('Gateway API raw response:', JSON.stringify(submitResult));
+
+      // Try multiple possible field names for job_id
+      const jobId = submitResult.job_id || submitResult.jobId || submitResult.id || submitResult.task_id || submitResult.request_id;
+      console.log('Extracted job_id:', jobId);
+
+      if (!jobId) {
+        console.error('No job_id found in Gateway response');
+        return new Response(
+          JSON.stringify({ 
+            error: 'No job_id received from analysis service', 
+            gateway_response: submitResult 
+          }),
+          { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
 
       // Update radiograph with job_id
       const { error: updateError } = await supabase
         .from('radiographs')
         .update({
-          job_id: submitResult.job_id,
+          job_id: jobId,
           analysis_status: 'processing',
           updated_at: new Date().toISOString()
         })
@@ -170,7 +185,7 @@ Deno.serve(async (req) => {
       }
 
       return new Response(
-        JSON.stringify({ job_id: submitResult.job_id, status: 'processing' }),
+        JSON.stringify({ job_id: jobId, status: 'processing' }),
         { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
