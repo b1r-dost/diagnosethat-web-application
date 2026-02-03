@@ -17,7 +17,9 @@ import {
   Lock, 
   CreditCard,
   Upload,
-  Trash2
+  Trash2,
+  Building2,
+  X
 } from 'lucide-react';
 import {
   AlertDialog,
@@ -42,6 +44,8 @@ export default function Settings() {
   const [lastName, setLastName] = useState('');
   const [institutionName, setInstitutionName] = useState('');
   const [isSavingProfile, setIsSavingProfile] = useState(false);
+  const [isUploadingAvatar, setIsUploadingAvatar] = useState(false);
+  const [isUploadingLogo, setIsUploadingLogo] = useState(false);
   
   // Password state
   const [currentPassword, setCurrentPassword] = useState('');
@@ -91,6 +95,168 @@ export default function Settings() {
       toast.error(t.settings.profile.error);
     } finally {
       setIsSavingProfile(false);
+    }
+  };
+
+  const handleAvatarUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file || !user) return;
+
+    // Validate file type
+    if (!file.type.startsWith('image/')) {
+      toast.error(language === 'tr' ? 'Sadece resim dosyaları yüklenebilir' : 'Only image files are allowed');
+      return;
+    }
+
+    // Validate file size (max 2MB)
+    if (file.size > 2 * 1024 * 1024) {
+      toast.error(language === 'tr' ? 'Dosya boyutu 2MB\'dan küçük olmalı' : 'File size must be less than 2MB');
+      return;
+    }
+
+    setIsUploadingAvatar(true);
+    try {
+      const fileExt = file.name.split('.').pop();
+      const filePath = `${user.id}/avatar.${fileExt}`;
+
+      // Upload to storage
+      const { error: uploadError } = await supabase.storage
+        .from('avatars')
+        .upload(filePath, file, { upsert: true });
+
+      if (uploadError) {
+        console.error('Upload error:', uploadError);
+        toast.error(language === 'tr' ? 'Yükleme başarısız' : 'Upload failed');
+        return;
+      }
+
+      // Get public URL
+      const { data: urlData } = supabase.storage
+        .from('avatars')
+        .getPublicUrl(filePath);
+
+      // Update profile
+      const { error: updateError } = await supabase
+        .from('profiles')
+        .update({ avatar_url: urlData.publicUrl, updated_at: new Date().toISOString() })
+        .eq('user_id', user.id);
+
+      if (updateError) {
+        console.error('Update error:', updateError);
+        toast.error(language === 'tr' ? 'Profil güncellenemedi' : 'Failed to update profile');
+        return;
+      }
+
+      toast.success(language === 'tr' ? 'Avatar güncellendi' : 'Avatar updated');
+      refreshProfile();
+    } catch (err) {
+      console.error('Error:', err);
+      toast.error(language === 'tr' ? 'Bir hata oluştu' : 'An error occurred');
+    } finally {
+      setIsUploadingAvatar(false);
+    }
+  };
+
+  const handleLogoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file || !user) return;
+
+    // Validate file type
+    if (!file.type.startsWith('image/')) {
+      toast.error(language === 'tr' ? 'Sadece resim dosyaları yüklenebilir' : 'Only image files are allowed');
+      return;
+    }
+
+    // Validate file size (max 2MB)
+    if (file.size > 2 * 1024 * 1024) {
+      toast.error(language === 'tr' ? 'Dosya boyutu 2MB\'dan küçük olmalı' : 'File size must be less than 2MB');
+      return;
+    }
+
+    setIsUploadingLogo(true);
+    try {
+      const fileExt = file.name.split('.').pop();
+      const filePath = `${user.id}/logo.${fileExt}`;
+
+      // Upload to storage
+      const { error: uploadError } = await supabase.storage
+        .from('logos')
+        .upload(filePath, file, { upsert: true });
+
+      if (uploadError) {
+        console.error('Upload error:', uploadError);
+        toast.error(language === 'tr' ? 'Yükleme başarısız' : 'Upload failed');
+        return;
+      }
+
+      // Get public URL
+      const { data: urlData } = supabase.storage
+        .from('logos')
+        .getPublicUrl(filePath);
+
+      // Update profile
+      const { error: updateError } = await supabase
+        .from('profiles')
+        .update({ institution_logo_url: urlData.publicUrl, updated_at: new Date().toISOString() })
+        .eq('user_id', user.id);
+
+      if (updateError) {
+        console.error('Update error:', updateError);
+        toast.error(language === 'tr' ? 'Profil güncellenemedi' : 'Failed to update profile');
+        return;
+      }
+
+      toast.success(language === 'tr' ? 'Logo güncellendi' : 'Logo updated');
+      refreshProfile();
+    } catch (err) {
+      console.error('Error:', err);
+      toast.error(language === 'tr' ? 'Bir hata oluştu' : 'An error occurred');
+    } finally {
+      setIsUploadingLogo(false);
+    }
+  };
+
+  const handleRemoveAvatar = async () => {
+    if (!user) return;
+    
+    try {
+      const { error } = await supabase
+        .from('profiles')
+        .update({ avatar_url: null, updated_at: new Date().toISOString() })
+        .eq('user_id', user.id);
+
+      if (error) {
+        console.error('Error:', error);
+        toast.error(language === 'tr' ? 'Avatar silinemedi' : 'Failed to remove avatar');
+        return;
+      }
+
+      toast.success(language === 'tr' ? 'Avatar silindi' : 'Avatar removed');
+      refreshProfile();
+    } catch (err) {
+      console.error('Error:', err);
+    }
+  };
+
+  const handleRemoveLogo = async () => {
+    if (!user) return;
+    
+    try {
+      const { error } = await supabase
+        .from('profiles')
+        .update({ institution_logo_url: null, updated_at: new Date().toISOString() })
+        .eq('user_id', user.id);
+
+      if (error) {
+        console.error('Error:', error);
+        toast.error(language === 'tr' ? 'Logo silinemedi' : 'Failed to remove logo');
+        return;
+      }
+
+      toast.success(language === 'tr' ? 'Logo silindi' : 'Logo removed');
+      refreshProfile();
+    } catch (err) {
+      console.error('Error:', err);
     }
   };
 
@@ -188,19 +354,103 @@ export default function Settings() {
               </CardHeader>
               <CardContent className="space-y-6">
                 {/* Avatar */}
-                <div className="flex items-center gap-4">
-                  <Avatar className="h-20 w-20">
-                    <AvatarImage src={profile?.avatar_url || undefined} />
-                    <AvatarFallback className="text-2xl">{initials}</AvatarFallback>
-                  </Avatar>
-                  <div>
-                    <Button variant="outline" size="sm" disabled>
-                      <Upload className="h-4 w-4 mr-2" />
-                      {t.settings.profile.uploadAvatar}
-                    </Button>
-                    <p className="text-xs text-muted-foreground mt-1">
-                      {language === 'tr' ? 'Yakında eklenecek' : 'Coming soon'}
-                    </p>
+                <div className="space-y-2">
+                  <Label>{t.settings.profile.uploadAvatar}</Label>
+                  <div className="flex items-center gap-4">
+                    <Avatar className="h-20 w-20">
+                      <AvatarImage src={profile?.avatar_url || undefined} />
+                      <AvatarFallback className="text-2xl">{initials}</AvatarFallback>
+                    </Avatar>
+                    <div className="flex flex-col gap-2">
+                      <div className="flex gap-2">
+                        <Button 
+                          variant="outline" 
+                          size="sm" 
+                          disabled={isUploadingAvatar}
+                          onClick={() => document.getElementById('avatar-upload')?.click()}
+                        >
+                          {isUploadingAvatar ? (
+                            <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                          ) : (
+                            <Upload className="h-4 w-4 mr-2" />
+                          )}
+                          {t.settings.profile.uploadAvatar}
+                        </Button>
+                        {profile?.avatar_url && (
+                          <Button 
+                            variant="ghost" 
+                            size="sm" 
+                            onClick={handleRemoveAvatar}
+                          >
+                            <X className="h-4 w-4" />
+                          </Button>
+                        )}
+                      </div>
+                      <input
+                        id="avatar-upload"
+                        type="file"
+                        accept="image/*"
+                        className="hidden"
+                        onChange={handleAvatarUpload}
+                      />
+                      <p className="text-xs text-muted-foreground">
+                        {language === 'tr' ? 'Max 2MB, JPG/PNG' : 'Max 2MB, JPG/PNG'}
+                      </p>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Institution Logo */}
+                <div className="space-y-2">
+                  <Label>{language === 'tr' ? 'Kurum Logosu' : 'Institution Logo'}</Label>
+                  <div className="flex items-center gap-4">
+                    <div className="h-20 w-20 rounded-lg border bg-muted flex items-center justify-center overflow-hidden">
+                      {profile?.institution_logo_url ? (
+                        <img 
+                          src={profile.institution_logo_url} 
+                          alt="Logo" 
+                          className="h-full w-full object-contain"
+                        />
+                      ) : (
+                        <Building2 className="h-8 w-8 text-muted-foreground" />
+                      )}
+                    </div>
+                    <div className="flex flex-col gap-2">
+                      <div className="flex gap-2">
+                        <Button 
+                          variant="outline" 
+                          size="sm" 
+                          disabled={isUploadingLogo}
+                          onClick={() => document.getElementById('logo-upload')?.click()}
+                        >
+                          {isUploadingLogo ? (
+                            <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                          ) : (
+                            <Upload className="h-4 w-4 mr-2" />
+                          )}
+                          {language === 'tr' ? 'Logo Yükle' : 'Upload Logo'}
+                        </Button>
+                        {profile?.institution_logo_url && (
+                          <Button 
+                            variant="ghost" 
+                            size="sm" 
+                            onClick={handleRemoveLogo}
+                          >
+                            <X className="h-4 w-4" />
+                          </Button>
+                        )}
+                      </div>
+                      <input
+                        id="logo-upload"
+                        type="file"
+                        accept="image/*"
+                        className="hidden"
+                        onChange={handleLogoUpload}
+                      />
+                      <p className="text-xs text-muted-foreground">
+                        {language === 'tr' ? 'Max 2MB, JPG/PNG' : 'Max 2MB, JPG/PNG'}
+                      </p>
+                    </div>
                   </div>
                 </div>
 
