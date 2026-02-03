@@ -89,9 +89,9 @@ All colors MUST be HSL.
 }
 
 /* Custom animations */
-@keyframes slideRight {
-  from { transform: translateX(-100%); }
-  to { transform: translateX(100%); }
+@keyframes slideDiagonal {
+  from { transform: rotate(-15deg) translateX(-100%); }
+  to { transform: rotate(-15deg) translateX(100%); }
 }
 
 @keyframes pulseGlowSubtle {
