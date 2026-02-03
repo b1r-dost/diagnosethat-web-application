@@ -90,11 +90,25 @@ Deno.serve(async (req) => {
       }
 
       const submitResult = await submitResponse.json();
-      console.log('Gateway API response:', JSON.stringify(submitResult));
-      console.log('Analysis submitted, job_id:', submitResult.job_id || submitResult.data?.job_id);
+      console.log('Gateway API raw response:', JSON.stringify(submitResult));
 
+      // Normalize: extract job_id from either top-level or nested data
+      const jobId = submitResult.job_id ?? submitResult.data?.job_id;
+      const status = submitResult.status ?? submitResult.data?.status ?? 'pending';
+
+      if (!jobId) {
+        console.error('No job_id found in Gateway response:', JSON.stringify(submitResult));
+        return new Response(
+          JSON.stringify({ error: 'No job_id received from Gateway', raw: submitResult }),
+          { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+
+      console.log('Analysis submitted, job_id:', jobId);
+
+      // Return normalized flat response
       return new Response(
-        JSON.stringify(submitResult),
+        JSON.stringify({ job_id: jobId, status }),
         { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
@@ -131,10 +145,18 @@ Deno.serve(async (req) => {
       }
 
       const pollResult = await pollResponse.json();
-      console.log('Poll result status:', pollResult.status);
+      console.log('Gateway poll raw response:', JSON.stringify(pollResult));
 
+      // Normalize: extract status/result/error from either top-level or nested data
+      const status = pollResult.status ?? pollResult.data?.status;
+      const result = pollResult.result ?? pollResult.data?.result;
+      const error = pollResult.error ?? pollResult.data?.error;
+
+      console.log('Poll result - status:', status, 'hasResult:', !!result);
+
+      // Return normalized flat response
       return new Response(
-        JSON.stringify(pollResult),
+        JSON.stringify({ status, result, error }),
         { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
