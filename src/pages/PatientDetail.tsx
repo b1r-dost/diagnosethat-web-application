@@ -10,6 +10,7 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
+import { RadiographThumbnail } from '@/components/RadiographThumbnail';
 import { 
   ArrowLeft, 
   User, 
@@ -477,15 +478,13 @@ export default function PatientDetail() {
             ) : (
               <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4">
                 {radiographs.map(radiograph => (
-                  <div
+                  <RadiographThumbnail
                     key={radiograph.id}
-                    className="aspect-square rounded-lg bg-muted border cursor-pointer hover:border-primary/50 hover:shadow-md transition-all overflow-hidden"
+                    storagePath={radiograph.storage_path}
+                    analysisStatus={radiograph.analysis_status}
+                    originalFilename={radiograph.original_filename}
                     onClick={() => navigate(`/analysis/${radiograph.id}`)}
-                  >
-                    <div className="w-full h-full flex items-center justify-center">
-                      <ImageIcon className="h-8 w-8 text-muted-foreground" />
-                    </div>
-                  </div>
+                  />
                 ))}
               </div>
             )}

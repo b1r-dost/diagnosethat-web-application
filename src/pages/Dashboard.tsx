@@ -43,12 +43,23 @@ interface Stats {
   thisMonthPatients: number;
 }
 
+interface Announcement {
+  id: string;
+  title_tr: string;
+  title_en: string;
+  content_tr: string;
+  content_en: string;
+  priority: number;
+  created_at: string;
+}
+
 export default function Dashboard() {
   const { t, language } = useI18n();
   const { user, profile, isLoading, isDentist, isPatient } = useAuth();
   const navigate = useNavigate();
   const [recentPatients, setRecentPatients] = useState<Patient[]>([]);
   const [recentRadiographs, setRecentRadiographs] = useState<Radiograph[]>([]);
+  const [announcements, setAnnouncements] = useState<Announcement[]>([]);
   const [stats, setStats] = useState<Stats>({ 
     totalPatients: 0, 
     totalRadiographs: 0, 
@@ -64,12 +75,41 @@ export default function Dashboard() {
   }, [user, isLoading, navigate]);
 
   useEffect(() => {
-    if (user && isDentist) {
-      fetchDashboardData();
+    if (user) {
+      fetchAnnouncements();
+      if (isDentist) {
+        fetchDashboardData();
+      } else {
+        setDataLoading(false);
+      }
     } else {
       setDataLoading(false);
     }
   }, [user, isDentist]);
+
+  const fetchAnnouncements = async () => {
+    try {
+      const now = new Date().toISOString();
+      const { data, error } = await supabase
+        .from('announcements')
+        .select('*')
+        .eq('is_active', true)
+        .or(`starts_at.is.null,starts_at.lte.${now}`)
+        .or(`ends_at.is.null,ends_at.gte.${now}`)
+        .order('priority', { ascending: false })
+        .order('created_at', { ascending: false })
+        .limit(5);
+
+      if (error) {
+        console.error('Error fetching announcements:', error);
+        return;
+      }
+
+      setAnnouncements(data || []);
+    } catch (err) {
+      console.error('Error:', err);
+    }
+  };
 
   const fetchDashboardData = async () => {
     try {
@@ -334,9 +374,27 @@ export default function Dashboard() {
               </CardTitle>
             </CardHeader>
             <CardContent>
-              <p className="text-sm text-muted-foreground py-4 text-center">
-                {t.dashboard.noAnnouncements}
-              </p>
+              {announcements.length === 0 ? (
+                <p className="text-sm text-muted-foreground py-4 text-center">
+                  {t.dashboard.noAnnouncements}
+                </p>
+              ) : (
+                <div className="space-y-4">
+                  {announcements.map(announcement => (
+                    <div key={announcement.id} className="border-l-4 border-primary pl-4 py-2">
+                      <h4 className="font-medium text-sm">
+                        {language === 'tr' ? announcement.title_tr : announcement.title_en}
+                      </h4>
+                      <p className="text-sm text-muted-foreground mt-1">
+                        {language === 'tr' ? announcement.content_tr : announcement.content_en}
+                      </p>
+                      <p className="text-xs text-muted-foreground mt-2">
+                        {format(new Date(announcement.created_at), 'dd.MM.yyyy')}
+                      </p>
+                    </div>
+                  ))}
+                </div>
+              )}
             </CardContent>
           </Card>
         </div>
