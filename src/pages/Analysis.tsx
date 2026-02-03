@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { MainLayout } from '@/components/layout/MainLayout';
 import { useI18n } from '@/lib/i18n';
@@ -10,6 +10,7 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { Switch } from '@/components/ui/switch';
 import { Label } from '@/components/ui/label';
 import { Slider } from '@/components/ui/slider';
+import { toast } from 'sonner';
 import { 
   ArrowLeft, 
   Download, 
@@ -36,9 +37,25 @@ interface Radiograph {
   original_filename: string | null;
   storage_path: string;
   analysis_status: string | null;
-  analysis_result: unknown;
+  analysis_result: AnalysisResult | null;
+  job_id: string | null;
   created_at: string;
   patient_id: string | null;
+}
+
+interface AnalysisResult {
+  teeth?: Array<{
+    id: number;
+    polygon: number[][];
+    tooth_number: number;
+  }>;
+  diseases?: Array<{
+    id: number;
+    polygon: number[][];
+    disease_type: string;
+    tooth_id?: number;
+    confidence?: number;
+  }>;
 }
 
 interface Finding {
@@ -60,26 +77,53 @@ export default function Analysis() {
   const [showTeethMask, setShowTeethMask] = useState(true);
   const [showDiseaseMask, setShowDiseaseMask] = useState(true);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
+  const [statusMessage, setStatusMessage] = useState<string>('');
+  const [findings, setFindings] = useState<Finding[]>([]);
   
   // Image adjustment controls
   const [brightness, setBrightness] = useState(100);
   const [contrast, setContrast] = useState(100);
 
-  // Mock findings data - will be replaced with real API data
-  const mockFindings: Finding[] = [
-    { id: 1, tooth_number: '16', condition: language === 'tr' ? 'Çürük' : 'Caries', confidence: 0.92, severity: language === 'tr' ? 'Orta' : 'Moderate' },
-    { id: 2, tooth_number: '24', condition: 'Periodontitis', confidence: 0.85, severity: language === 'tr' ? 'Hafif' : 'Mild' },
-    { id: 3, tooth_number: '36', condition: language === 'tr' ? 'Kök kanal enfeksiyonu' : 'Root canal infection', confidence: 0.78, severity: language === 'tr' ? 'Ciddi' : 'Severe' },
-    { id: 4, tooth_number: '45', condition: language === 'tr' ? 'Çürük' : 'Caries', confidence: 0.88, severity: language === 'tr' ? 'Hafif' : 'Mild' },
-  ];
+  // Parse analysis result to findings
+  const parseResultToFindings = useCallback((result: AnalysisResult | null): Finding[] => {
+    if (!result || !result.diseases) return [];
+    
+    return result.diseases.map((disease, index) => ({
+      id: disease.id || index + 1,
+      tooth_number: disease.tooth_id?.toString() || '-',
+      condition: getDiseaseLabel(disease.disease_type),
+      confidence: disease.confidence || 0.85,
+      severity: getSeverityFromType(disease.disease_type),
+    }));
+  }, []);
 
-  useEffect(() => {
-    if (id && user && isDentist) {
-      fetchRadiograph();
-    }
-  }, [id, user, isDentist]);
+  const getDiseaseLabel = (type: string): string => {
+    const labels: Record<string, string> = {
+      caries: language === 'tr' ? 'Çürük' : 'Caries',
+      periodontitis: 'Periodontitis',
+      periapical_lesion: language === 'tr' ? 'Periapikal Lezyon' : 'Periapical Lesion',
+      root_canal: language === 'tr' ? 'Kök Kanal Enfeksiyonu' : 'Root Canal Infection',
+      bone_loss: language === 'tr' ? 'Kemik Kaybı' : 'Bone Loss',
+      impacted: language === 'tr' ? 'Gömülü Diş' : 'Impacted Tooth',
+    };
+    return labels[type] || type;
+  };
 
-  const fetchRadiograph = async () => {
+  const getSeverityFromType = (type: string): string => {
+    const severityMap: Record<string, string> = {
+      caries: language === 'tr' ? 'Orta' : 'Moderate',
+      periodontitis: language === 'tr' ? 'Hafif' : 'Mild',
+      periapical_lesion: language === 'tr' ? 'Ciddi' : 'Severe',
+      root_canal: language === 'tr' ? 'Ciddi' : 'Severe',
+      bone_loss: language === 'tr' ? 'Orta' : 'Moderate',
+      impacted: language === 'tr' ? 'Hafif' : 'Mild',
+    };
+    return severityMap[type] || (language === 'tr' ? 'Bilinmiyor' : 'Unknown');
+  };
+
+  const fetchRadiograph = useCallback(async () => {
+    if (!id || !user) return;
+    
     try {
       const { data, error } = await supabase
         .from('radiographs')
@@ -93,7 +137,12 @@ export default function Analysis() {
         return;
       }
 
-      setRadiograph(data);
+      setRadiograph(data as Radiograph);
+      
+      // Parse findings from result if available
+      if (data.analysis_result) {
+        setFindings(parseResultToFindings(data.analysis_result as AnalysisResult));
+      }
 
       // Get signed URL for image
       const { data: urlData } = await supabase.storage
@@ -103,19 +152,156 @@ export default function Analysis() {
       if (urlData) {
         setImageUrl(urlData.signedUrl);
       }
+
+      return data as Radiograph;
     } catch (err) {
       console.error('Error:', err);
+      return null;
     } finally {
       setIsLoading(false);
     }
-  };
+  }, [id, user, navigate, parseResultToFindings]);
+
+  // Start analysis if pending
+  const startAnalysis = useCallback(async (radiographData: Radiograph) => {
+    if (radiographData.analysis_status !== 'pending') return;
+    
+    setIsAnalyzing(true);
+    setStatusMessage(language === 'tr' ? 'Analiz başlatılıyor...' : 'Starting analysis...');
+    
+    try {
+      const { data, error } = await supabase.functions.invoke('analyze-radiograph', {
+        body: {
+          radiograph_id: radiographData.id,
+          action: 'submit'
+        }
+      });
+
+      if (error) {
+        console.error('Failed to start analysis:', error);
+        toast.error(language === 'tr' ? 'Analiz başlatılamadı' : 'Failed to start analysis');
+        setIsAnalyzing(false);
+        return;
+      }
+
+      console.log('Analysis started, job_id:', data.job_id);
+      setStatusMessage(language === 'tr' ? 'Analiz ediliyor...' : 'Analyzing...');
+      
+      // Start polling
+      pollForResult(data.job_id);
+    } catch (err) {
+      console.error('Error starting analysis:', err);
+      toast.error(language === 'tr' ? 'Bir hata oluştu' : 'An error occurred');
+      setIsAnalyzing(false);
+    }
+  }, [language]);
+
+  // Poll for analysis result
+  const pollForResult = useCallback(async (jobId: string) => {
+    const maxAttempts = 60; // 5 minutes with 5 second intervals
+    let attempts = 0;
+
+    const poll = async () => {
+      if (attempts >= maxAttempts) {
+        setStatusMessage(language === 'tr' ? 'Analiz zaman aşımına uğradı' : 'Analysis timed out');
+        setIsAnalyzing(false);
+        toast.error(language === 'tr' ? 'Analiz zaman aşımına uğradı' : 'Analysis timed out');
+        return;
+      }
+
+      attempts++;
+      console.log(`Polling attempt ${attempts}/${maxAttempts}`);
+
+      try {
+        const { data, error } = await supabase.functions.invoke('analyze-radiograph', {
+          body: {
+            radiograph_id: id,
+            action: 'poll',
+            job_id: jobId
+          }
+        });
+
+        if (error) {
+          console.error('Poll error:', error);
+          setTimeout(poll, 5000);
+          return;
+        }
+
+        console.log('Poll result:', data.status);
+
+        if (data.status === 'completed') {
+          setStatusMessage(language === 'tr' ? 'Analiz tamamlandı!' : 'Analysis complete!');
+          setIsAnalyzing(false);
+          toast.success(language === 'tr' ? 'Analiz tamamlandı!' : 'Analysis complete!');
+          
+          // Refresh radiograph data to get the result
+          const updatedData = await fetchRadiograph();
+          if (updatedData?.analysis_result) {
+            setFindings(parseResultToFindings(updatedData.analysis_result));
+          }
+          return;
+        }
+
+        if (data.status === 'error') {
+          setStatusMessage(language === 'tr' ? 'Analiz başarısız' : 'Analysis failed');
+          setIsAnalyzing(false);
+          toast.error(language === 'tr' ? 'Analiz başarısız oldu' : 'Analysis failed');
+          return;
+        }
+
+        // Continue polling
+        setStatusMessage(
+          language === 'tr' 
+            ? `Analiz ediliyor... (${Math.floor(attempts * 5 / 60)}:${String(attempts * 5 % 60).padStart(2, '0')})` 
+            : `Analyzing... (${Math.floor(attempts * 5 / 60)}:${String(attempts * 5 % 60).padStart(2, '0')})`
+        );
+        setTimeout(poll, 5000);
+      } catch (err) {
+        console.error('Poll error:', err);
+        setTimeout(poll, 5000);
+      }
+    };
+
+    poll();
+  }, [id, language, fetchRadiograph, parseResultToFindings]);
+
+  useEffect(() => {
+    if (id && user && isDentist) {
+      fetchRadiograph().then((data) => {
+        if (data && data.analysis_status === 'pending') {
+          startAnalysis(data);
+        } else if (data && data.analysis_status === 'processing' && data.job_id) {
+          setIsAnalyzing(true);
+          setStatusMessage(language === 'tr' ? 'Analiz devam ediyor...' : 'Analysis in progress...');
+          pollForResult(data.job_id);
+        }
+      });
+    }
+  }, [id, user, isDentist]);
 
   const handleReanalyze = async () => {
-    setIsAnalyzing(true);
-    // Simulate analysis - will be replaced with real API call
-    setTimeout(() => {
-      setIsAnalyzing(false);
-    }, 3000);
+    if (!radiograph) return;
+    
+    // Reset status to pending and trigger new analysis
+    const { error } = await supabase
+      .from('radiographs')
+      .update({
+        analysis_status: 'pending',
+        job_id: null,
+        analysis_result: null
+      })
+      .eq('id', radiograph.id);
+
+    if (error) {
+      console.error('Failed to reset analysis:', error);
+      toast.error(language === 'tr' ? 'Yeniden analiz başlatılamadı' : 'Failed to restart analysis');
+      return;
+    }
+
+    setFindings([]);
+    const updatedRadiograph = { ...radiograph, analysis_status: 'pending', job_id: null, analysis_result: null };
+    setRadiograph(updatedRadiograph);
+    startAnalysis(updatedRadiograph);
   };
 
   const handleResetControls = () => {
@@ -242,15 +428,23 @@ export default function Analysis() {
                       className="w-full h-auto"
                       style={imageStyle}
                     />
-                    {/* Overlay for masks - placeholder */}
-                    {(showTeethMask || showDiseaseMask) && (
+                    {/* Overlay for masks - placeholder for real polygon rendering */}
+                    {(showTeethMask || showDiseaseMask) && radiograph?.analysis_result && (
                       <div className="absolute inset-0 pointer-events-none">
                         {showTeethMask && (
                           <div className="absolute inset-0 bg-primary/10" />
                         )}
-                        {showDiseaseMask && (
-                          <div className="absolute top-1/4 left-1/4 w-8 h-8 bg-destructive/30 rounded-full" />
-                        )}
+                        {showDiseaseMask && radiograph.analysis_result.diseases?.map((disease, idx) => (
+                          <div 
+                            key={idx}
+                            className="absolute w-6 h-6 bg-destructive/40 rounded-full border-2 border-destructive"
+                            style={{
+                              // Placeholder positioning - will be replaced with actual polygon rendering
+                              top: `${20 + idx * 15}%`,
+                              left: `${25 + idx * 10}%`,
+                            }}
+                          />
+                        ))}
                       </div>
                     )}
                   </div>
@@ -324,16 +518,20 @@ export default function Analysis() {
               <CardTitle>{t.analysis.report.title}</CardTitle>
             </CardHeader>
             <CardContent>
-              {radiograph?.analysis_status === 'pending' || isAnalyzing ? (
+              {isAnalyzing ? (
                 <div className="h-64 flex flex-col items-center justify-center gap-4">
                   <Loader2 className="h-8 w-8 animate-spin text-primary" />
                   <p className="text-muted-foreground">
-                    {t.analysis.processing}
+                    {statusMessage || t.analysis.processing}
                   </p>
                 </div>
-              ) : mockFindings.length === 0 ? (
+              ) : findings.length === 0 ? (
                 <div className="h-64 flex items-center justify-center">
-                  <p className="text-muted-foreground">{t.analysis.report.noFindings}</p>
+                  <p className="text-muted-foreground">
+                    {radiograph?.analysis_status === 'completed' 
+                      ? t.analysis.report.noFindings 
+                      : (language === 'tr' ? 'Analiz bekleniyor...' : 'Waiting for analysis...')}
+                  </p>
                 </div>
               ) : (
                 <Table>
@@ -347,7 +545,7 @@ export default function Analysis() {
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {mockFindings.map((finding, index) => (
+                    {findings.map((finding, index) => (
                       <TableRow key={finding.id}>
                         <TableCell>{index + 1}</TableCell>
                         <TableCell className="font-medium">{finding.tooth_number}</TableCell>
