@@ -10,12 +10,12 @@ import {
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { useI18n } from '@/lib/i18n';
 import { useAuth } from '@/hooks/useAuth';
-import { Menu, User, Settings, LogOut, LayoutDashboard, Users, Lightbulb, BookOpen, Shield } from 'lucide-react';
+import { Menu, User, Settings, LogOut, LayoutDashboard, Users, Lightbulb, BookOpen, Shield, Globe } from 'lucide-react';
 import { useState } from 'react';
 import { Sheet, SheetContent, SheetTrigger } from '@/components/ui/sheet';
 
 export function Header() {
-  const { t, brandName } = useI18n();
+  const { t, brandName, language, setLanguage } = useI18n();
   const { user, profile, isAdmin, isDentist, signOut } = useAuth();
   const navigate = useNavigate();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
@@ -104,7 +104,30 @@ export function Header() {
           </nav>
         </div>
 
-        <div className="flex items-center gap-4">
+        <div className="flex items-center gap-2">
+          {/* Language Selector */}
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="ghost" size="icon">
+                <Globe className="h-4 w-4" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              <DropdownMenuItem 
+                onClick={() => setLanguage('tr')}
+                className={language === 'tr' ? 'bg-muted' : ''}
+              >
+                🇹🇷 Türkçe
+              </DropdownMenuItem>
+              <DropdownMenuItem 
+                onClick={() => setLanguage('en')}
+                className={language === 'en' ? 'bg-muted' : ''}
+              >
+                🇬🇧 English
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+
           {user ? (
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
