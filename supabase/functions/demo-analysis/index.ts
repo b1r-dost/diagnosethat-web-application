@@ -45,7 +45,7 @@ Deno.serve(async (req) => {
 
       // Call Gateway API to submit analysis using multipart/form-data
       const formData = new FormData();
-      formData.append('image_base64', body.image_base64);
+      formData.append('image', body.image_base64);
       formData.append('doctor_ref', 'MainPageDemo');
       formData.append('clinic_ref', body.clinic_ref || 'DiagnoseThat');
       formData.append('patient_ref', 'DemoPatient');
