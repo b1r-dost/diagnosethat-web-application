@@ -3,251 +3,262 @@ import { useDropzone } from 'react-dropzone';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { useI18n } from '@/lib/i18n';
-import { Upload, Loader2, AlertCircle, CheckCircle2, X } from 'lucide-react';
-import { Alert, AlertDescription } from '@/components/ui/alert';
-import { cn } from '@/lib/utils';
+import { Upload, AlertCircle, CheckCircle2, Loader2 } from 'lucide-react';
+import { Link } from 'react-router-dom';
 
 interface AnalysisResult {
-  radiograph_type: string;
   teeth: Array<{
-    tooth_id: number;
-    confidence: number;
+    id: number;
     polygon: number[][];
+    tooth_number?: number;
   }>;
   diseases: Array<{
-    type: string;
-    confidence: number;
-    tooth_id: number | null;
+    id: number;
     polygon: number[][];
+    disease_type: string;
+    tooth_id?: number;
   }>;
 }
 
+// Mock analysis for demo - will be replaced with real API
+const mockAnalysis = (): Promise<AnalysisResult> => {
+  return new Promise((resolve) => {
+    setTimeout(() => {
+      // Generate mock teeth and diseases based on random positions
+      const teeth = Array.from({ length: Math.floor(Math.random() * 8) + 10 }, (_, i) => ({
+        id: i + 1,
+        polygon: generateMockPolygon(),
+        tooth_number: Math.floor(Math.random() * 32) + 1,
+      }));
+
+      const diseases = Array.from({ length: Math.floor(Math.random() * 4) + 1 }, (_, i) => ({
+        id: i + 1,
+        polygon: generateMockPolygon(),
+        disease_type: ['caries', 'periapical_lesion', 'calculus', 'periodontitis'][Math.floor(Math.random() * 4)],
+        tooth_id: teeth[Math.floor(Math.random() * teeth.length)]?.id,
+      }));
+
+      resolve({ teeth, diseases });
+    }, 2500);
+  });
+};
+
+const generateMockPolygon = (): number[][] => {
+  const centerX = Math.random() * 0.6 + 0.2;
+  const centerY = Math.random() * 0.6 + 0.2;
+  const size = Math.random() * 0.08 + 0.04;
+  
+  return [
+    [centerX - size, centerY - size],
+    [centerX + size, centerY - size],
+    [centerX + size, centerY + size],
+    [centerX - size, centerY + size],
+  ];
+};
+
+// Generate a consistent color for teeth based on ID
+const getToothColor = (id: number): string => {
+  const colors = [
+    'rgba(251, 146, 60, 0.25)',  // orange-400
+    'rgba(249, 115, 22, 0.25)',  // orange-500
+    'rgba(234, 88, 12, 0.25)',   // orange-600
+    'rgba(251, 191, 36, 0.25)',  // amber-400
+    'rgba(245, 158, 11, 0.25)',  // amber-500
+    'rgba(217, 119, 6, 0.25)',   // amber-600
+  ];
+  return colors[id % colors.length];
+};
+
 export function DemoAnalysis() {
-  const { t, clinicRef } = useI18n();
+  const { t, language } = useI18n();
   const [image, setImage] = useState<string | null>(null);
-  const [imageFile, setImageFile] = useState<File | null>(null);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
-  const [analysisResult, setAnalysisResult] = useState<AnalysisResult | null>(null);
+  const [result, setResult] = useState<AnalysisResult | null>(null);
   const [error, setError] = useState<string | null>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
-  const imageRef = useRef<HTMLImageElement>(null);
+  const imageRef = useRef<HTMLImageElement | null>(null);
 
   const onDrop = useCallback((acceptedFiles: File[]) => {
     const file = acceptedFiles[0];
     if (file) {
       setError(null);
-      setAnalysisResult(null);
-      setImageFile(file);
+      setResult(null);
       
       const reader = new FileReader();
       reader.onload = () => {
         setImage(reader.result as string);
+        analyzeImage();
       };
       reader.readAsDataURL(file);
     }
   }, []);
 
-  const { getRootProps, getInputProps, isDragActive } = useDropzone({
-    onDrop,
-    accept: {
-      'image/jpeg': ['.jpg', '.jpeg'],
-      'image/png': ['.png'],
-      'image/webp': ['.webp'],
-    },
-    maxSize: 20 * 1024 * 1024, // 20MB
-    multiple: false,
-  });
-
   const analyzeImage = async () => {
-    if (!imageFile) return;
-
     setIsAnalyzing(true);
-    setError(null);
-
     try {
-      // Create FormData for the API call
-      const formData = new FormData();
-      formData.append('image', imageFile);
-      formData.append('doctor_ref', 'MainPageDemo');
-      formData.append('clinic_ref', clinicRef);
-
-      // TODO: Replace with actual API endpoint when ready
-      // For now, simulate the analysis with mock data
-      await new Promise(resolve => setTimeout(resolve, 2000));
-
-      // Mock analysis result
-      const mockResult: AnalysisResult = {
-        radiograph_type: 'panoramic',
-        teeth: [
-          { tooth_id: 11, confidence: 0.95, polygon: [[100, 150], [150, 150], [150, 200], [100, 200]] },
-          { tooth_id: 12, confidence: 0.92, polygon: [[160, 150], [210, 150], [210, 200], [160, 200]] },
-          { tooth_id: 21, confidence: 0.94, polygon: [[220, 150], [270, 150], [270, 200], [220, 200]] },
-          { tooth_id: 22, confidence: 0.91, polygon: [[280, 150], [330, 150], [330, 200], [280, 200]] },
-          { tooth_id: 36, confidence: 0.93, polygon: [[120, 280], [170, 280], [170, 330], [120, 330]] },
-          { tooth_id: 46, confidence: 0.90, polygon: [[250, 280], [300, 280], [300, 330], [250, 330]] },
-        ],
-        diseases: [
-          { type: 'caries', confidence: 0.88, tooth_id: 36, polygon: [[130, 290], [160, 290], [160, 320], [130, 320]] },
-          { type: 'periapical_lesion', confidence: 0.75, tooth_id: 46, polygon: [[260, 300], [290, 300], [290, 325], [260, 325]] },
-        ],
-      };
-
-      setAnalysisResult(mockResult);
+      const analysisResult = await mockAnalysis();
+      setResult(analysisResult);
     } catch (err) {
       setError(t.home.demo.uploadError);
-      console.error('Analysis error:', err);
     } finally {
       setIsAnalyzing(false);
     }
   };
 
-  // Draw analysis overlay
+  const { getRootProps, getInputProps, isDragActive } = useDropzone({
+    onDrop,
+    accept: {
+      'image/*': ['.jpeg', '.jpg', '.png', '.webp'],
+    },
+    maxFiles: 1,
+  });
+
+  // Draw overlays on canvas
   useEffect(() => {
-    if (!analysisResult || !canvasRef.current || !imageRef.current) return;
+    if (!image || !result || !canvasRef.current) return;
 
     const canvas = canvasRef.current;
     const ctx = canvas.getContext('2d');
-    const img = imageRef.current;
-
     if (!ctx) return;
 
-    canvas.width = img.naturalWidth;
-    canvas.height = img.naturalHeight;
+    const img = new Image();
+    img.onload = () => {
+      imageRef.current = img;
+      canvas.width = img.width;
+      canvas.height = img.height;
+      
+      // Draw original image
+      ctx.drawImage(img, 0, 0);
 
-    // Draw teeth masks (green)
-    ctx.fillStyle = 'rgba(34, 197, 94, 0.2)'; // green-500 with 20% opacity
-    ctx.strokeStyle = 'rgba(34, 197, 94, 0.8)';
-    ctx.lineWidth = 2;
-
-    analysisResult.teeth.forEach(tooth => {
-      if (tooth.polygon.length > 0) {
+      // Draw teeth polygons with orange tones
+      result.teeth.forEach((tooth) => {
         ctx.beginPath();
-        ctx.moveTo(tooth.polygon[0][0], tooth.polygon[0][1]);
-        tooth.polygon.forEach(([x, y]) => ctx.lineTo(x, y));
-        ctx.closePath();
-        ctx.fill();
-        ctx.stroke();
-      }
-    });
+        const points = tooth.polygon.map(p => [p[0] * img.width, p[1] * img.height]);
+        if (points.length > 0) {
+          ctx.moveTo(points[0][0], points[0][1]);
+          points.forEach(point => ctx.lineTo(point[0], point[1]));
+          ctx.closePath();
+          ctx.fillStyle = getToothColor(tooth.id);
+          ctx.fill();
+          ctx.strokeStyle = 'rgba(249, 115, 22, 0.6)';
+          ctx.lineWidth = 2;
+          ctx.stroke();
+        }
+      });
 
-    // Draw disease masks (red)
-    ctx.fillStyle = 'rgba(239, 68, 68, 0.3)'; // red-500 with 30% opacity
-    ctx.strokeStyle = 'rgba(239, 68, 68, 0.9)';
-    ctx.lineWidth = 2;
-
-    analysisResult.diseases.forEach(disease => {
-      if (disease.polygon.length > 0) {
+      // Draw disease polygons with red
+      result.diseases.forEach((disease) => {
         ctx.beginPath();
-        ctx.moveTo(disease.polygon[0][0], disease.polygon[0][1]);
-        disease.polygon.forEach(([x, y]) => ctx.lineTo(x, y));
-        ctx.closePath();
-        ctx.fill();
-        ctx.stroke();
-      }
-    });
-  }, [analysisResult]);
+        const points = disease.polygon.map(p => [p[0] * img.width, p[1] * img.height]);
+        if (points.length > 0) {
+          ctx.moveTo(points[0][0], points[0][1]);
+          points.forEach(point => ctx.lineTo(point[0], point[1]));
+          ctx.closePath();
+          ctx.fillStyle = 'rgba(239, 68, 68, 0.35)';
+          ctx.fill();
+          ctx.strokeStyle = 'rgba(220, 38, 38, 0.8)';
+          ctx.lineWidth = 2;
+          ctx.stroke();
+        }
+      });
+    };
+    img.src = image;
+  }, [image, result]);
 
-  const resetDemo = () => {
+  const reset = () => {
     setImage(null);
-    setImageFile(null);
-    setAnalysisResult(null);
+    setResult(null);
     setError(null);
   };
 
   return (
-    <Card className="w-full max-w-2xl mx-auto">
-      <CardHeader>
-        <CardTitle className="flex items-center justify-between">
-          {t.home.demo.title}
-          {image && (
-            <Button variant="ghost" size="icon" onClick={resetDemo}>
-              <X className="h-4 w-4" />
-            </Button>
-          )}
-        </CardTitle>
+    <Card className="border-border/50 shadow-lg">
+      <CardHeader className="text-center pb-4">
+        <CardTitle className="text-2xl font-bold">{t.home.demo.title}</CardTitle>
       </CardHeader>
-      <CardContent className="space-y-4">
+      <CardContent className="space-y-6">
         {!image ? (
           <div
             {...getRootProps()}
-            className={cn(
-              "border-2 border-dashed rounded-lg p-8 text-center cursor-pointer transition-colors",
-              isDragActive 
-                ? "border-primary bg-primary/5" 
-                : "border-muted-foreground/25 hover:border-primary/50"
-            )}
+            className={`
+              border-2 border-dashed rounded-xl p-8 text-center cursor-pointer
+              transition-all duration-200
+              ${isDragActive 
+                ? 'border-primary bg-primary/5' 
+                : 'border-border hover:border-primary/50 hover:bg-muted/50'
+              }
+            `}
           >
             <input {...getInputProps()} />
             <Upload className="h-12 w-12 mx-auto mb-4 text-muted-foreground" />
-            <p className="text-muted-foreground">{t.home.demo.dropzone}</p>
-            <p className="text-sm text-muted-foreground mt-2">{t.home.demo.supportedFormats}</p>
+            <p className="text-muted-foreground mb-2">
+              {t.home.demo.dropzone}
+            </p>
+            <p className="text-xs text-muted-foreground">
+              {t.home.demo.supportedFormats}
+            </p>
           </div>
         ) : (
           <div className="space-y-4">
-            <div className="relative">
-              <img
-                ref={imageRef}
-                src={image}
-                alt="Uploaded radiograph"
-                className="w-full rounded-lg"
-                onLoad={() => {
-                  if (analysisResult && canvasRef.current && imageRef.current) {
-                    // Trigger redraw when image loads
-                    const event = new Event('load');
-                    imageRef.current.dispatchEvent(event);
-                  }
-                }}
+            <div className="relative rounded-xl overflow-hidden bg-muted">
+              <canvas
+                ref={canvasRef}
+                className="w-full h-auto"
               />
-              {analysisResult && (
-                <canvas
-                  ref={canvasRef}
-                  className="absolute inset-0 w-full h-full pointer-events-none"
-                  style={{ objectFit: 'contain' }}
-                />
+              {isAnalyzing && (
+                <div className="absolute inset-0 bg-background/80 flex items-center justify-center">
+                  <div className="flex items-center gap-3">
+                    <Loader2 className="h-6 w-6 animate-spin text-primary" />
+                    <span className="text-foreground font-medium">{t.home.demo.analyzing}</span>
+                  </div>
+                </div>
               )}
             </div>
 
-            {!analysisResult && !isAnalyzing && (
-              <Button onClick={analyzeImage} className="w-full">
-                {t.home.hero.tryDemo}
-              </Button>
-            )}
+            {result && (
+              <div className="space-y-4">
+                <div className="flex items-center justify-center gap-6">
+                  <div className="flex items-center gap-2 text-sm">
+                    <div className="w-4 h-4 rounded bg-primary/30 border border-primary" />
+                    <span className="text-foreground font-medium">{result.teeth.length}</span>
+                    <span className="text-muted-foreground">{t.home.demo.teethDetected}</span>
+                  </div>
+                  <div className="flex items-center gap-2 text-sm">
+                    <div className="w-4 h-4 rounded bg-destructive/30 border border-destructive" />
+                    <span className="text-foreground font-medium">{result.diseases.length}</span>
+                    <span className="text-muted-foreground">{t.home.demo.diseasesDetected}</span>
+                  </div>
+                </div>
 
-            {isAnalyzing && (
-              <div className="flex items-center justify-center gap-2 py-4">
-                <Loader2 className="h-5 w-5 animate-spin" />
-                <span>{t.home.demo.analyzing}</span>
+                <div className="flex items-start gap-2 p-3 rounded-lg bg-muted/50 border border-border">
+                  <AlertCircle className="h-4 w-4 text-muted-foreground shrink-0 mt-0.5" />
+                  <p className="text-xs text-muted-foreground">
+                    {t.home.demo.disclaimer}
+                  </p>
+                </div>
+
+                <div className="flex items-center gap-2 p-3 rounded-lg bg-primary/5 border border-primary/20">
+                  <CheckCircle2 className="h-4 w-4 text-primary shrink-0" />
+                  <p className="text-sm text-foreground">
+                    {t.home.demo.signupPrompt}
+                  </p>
+                </div>
+
+                <div className="flex gap-3 justify-center">
+                  <Button variant="outline" onClick={reset}>
+                    {language === 'tr' ? 'Yeni Görüntü' : 'New Image'}
+                  </Button>
+                  <Button variant="hero" asChild>
+                    <Link to="/auth?mode=signup">{t.nav.signup}</Link>
+                  </Button>
+                </div>
               </div>
             )}
 
             {error && (
-              <Alert variant="destructive">
-                <AlertCircle className="h-4 w-4" />
-                <AlertDescription>{error}</AlertDescription>
-              </Alert>
-            )}
-
-            {analysisResult && (
-              <div className="space-y-3">
-                <div className="flex items-center gap-4 text-sm">
-                  <div className="flex items-center gap-2">
-                    <div className="w-4 h-4 rounded bg-primary/20 border border-primary" />
-                    <span>{analysisResult.teeth.length} {t.home.demo.teethDetected}</span>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <div className="w-4 h-4 rounded bg-destructive/30 border border-destructive" />
-                    <span>{analysisResult.diseases.length} {t.home.demo.diseasesDetected}</span>
-                  </div>
-                </div>
-
-                <Alert>
-                  <CheckCircle2 className="h-4 w-4" />
-                  <AlertDescription>{t.home.demo.signupPrompt}</AlertDescription>
-                </Alert>
-
-                <p className="text-xs text-muted-foreground text-center">
-                  {t.home.demo.disclaimer}
-                </p>
+              <div className="flex items-center gap-2 p-3 rounded-lg bg-destructive/10 border border-destructive/20">
+                <AlertCircle className="h-4 w-4 text-destructive" />
+                <p className="text-sm text-destructive">{error}</p>
               </div>
             )}
           </div>
