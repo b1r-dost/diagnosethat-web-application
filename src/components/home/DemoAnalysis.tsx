@@ -8,13 +8,15 @@ import { Link } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
 
 interface AnalysisResult {
+  radiograph_type?: string;
+  inference_version?: string;
   teeth: Array<{
-    id: number;
+    tooth_id: number;
+    confidence?: number;
     polygon: number[][];
-    tooth_number?: number;
   }>;
   diseases: Array<{
-    id: number;
+    disease_id?: number;
     polygon: number[][];
     disease_type: string;
     tooth_id?: number;
@@ -194,15 +196,34 @@ export function DemoAnalysis() {
       // Draw original image
       ctx.drawImage(img, 0, 0);
 
+      // Find bounding box of all polygons to determine coordinate scale
+      let maxX = 0, maxY = 0;
+      result.teeth.forEach((tooth) => {
+        tooth.polygon.forEach(p => {
+          if (p[0] > maxX) maxX = p[0];
+          if (p[1] > maxY) maxY = p[1];
+        });
+      });
+      (result.diseases || []).forEach((disease) => {
+        disease.polygon.forEach(p => {
+          if (p[0] > maxX) maxX = p[0];
+          if (p[1] > maxY) maxY = p[1];
+        });
+      });
+
+      // Calculate scale factors (API returns pixel coords relative to original image)
+      const scaleX = img.width / (maxX || img.width);
+      const scaleY = img.height / (maxY || img.height);
+
       // Draw teeth polygons with orange tones
       result.teeth.forEach((tooth) => {
         ctx.beginPath();
-        const points = tooth.polygon.map(p => [p[0] * img.width, p[1] * img.height]);
+        const points = tooth.polygon.map(p => [p[0] * scaleX, p[1] * scaleY]);
         if (points.length > 0) {
           ctx.moveTo(points[0][0], points[0][1]);
           points.forEach(point => ctx.lineTo(point[0], point[1]));
           ctx.closePath();
-          ctx.fillStyle = getToothColor(tooth.id);
+          ctx.fillStyle = getToothColor(tooth.tooth_id);
           ctx.fill();
           ctx.strokeStyle = 'rgba(249, 115, 22, 0.6)';
           ctx.lineWidth = 2;
@@ -211,9 +232,9 @@ export function DemoAnalysis() {
       });
 
       // Draw disease polygons with red
-      result.diseases.forEach((disease) => {
+      (result.diseases || []).forEach((disease) => {
         ctx.beginPath();
-        const points = disease.polygon.map(p => [p[0] * img.width, p[1] * img.height]);
+        const points = disease.polygon.map(p => [p[0] * scaleX, p[1] * scaleY]);
         if (points.length > 0) {
           ctx.moveTo(points[0][0], points[0][1]);
           points.forEach(point => ctx.lineTo(point[0], point[1]));
@@ -294,7 +315,7 @@ export function DemoAnalysis() {
                   </div>
                   <div className="flex items-center gap-2 text-sm">
                     <div className="w-4 h-4 rounded bg-destructive/30 border border-destructive" />
-                    <span className="text-foreground font-medium">{result.diseases.length}</span>
+                    <span className="text-foreground font-medium">{(result.diseases || []).length}</span>
                     <span className="text-muted-foreground">{t.home.demo.diseasesDetected}</span>
                   </div>
                 </div>
