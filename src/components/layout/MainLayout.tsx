@@ -1,5 +1,7 @@
 import { ReactNode } from 'react';
-import { Header } from './Header';
+import { SidebarProvider, SidebarInset } from '@/components/ui/sidebar';
+import { AppSidebar } from './AppSidebar';
+import { TopBar } from './TopBar';
 import { Footer } from './Footer';
 
 interface MainLayoutProps {
@@ -9,10 +11,15 @@ interface MainLayoutProps {
 
 export function MainLayout({ children, showFooter = true }: MainLayoutProps) {
   return (
-    <div className="min-h-screen flex flex-col bg-background">
-      <Header />
-      <main className="flex-1">{children}</main>
-      {showFooter && <Footer />}
-    </div>
+    <SidebarProvider>
+      <div className="min-h-screen flex w-full bg-background">
+        <AppSidebar />
+        <SidebarInset className="flex flex-col flex-1">
+          <TopBar />
+          <main className="flex-1">{children}</main>
+          {showFooter && <Footer />}
+        </SidebarInset>
+      </div>
+    </SidebarProvider>
   );
 }
