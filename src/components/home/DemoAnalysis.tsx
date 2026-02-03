@@ -5,6 +5,7 @@ import { Button } from '@/components/ui/button';
 import { useI18n } from '@/lib/i18n';
 import { Upload, AlertCircle, CheckCircle2, Loader2 } from 'lucide-react';
 import { Link } from 'react-router-dom';
+import { supabase } from '@/integrations/supabase/client';
 
 interface AnalysisResult {
   teeth: Array<{
@@ -20,42 +21,6 @@ interface AnalysisResult {
   }>;
 }
 
-// Mock analysis for demo - will be replaced with real API
-const mockAnalysis = (): Promise<AnalysisResult> => {
-  return new Promise((resolve) => {
-    setTimeout(() => {
-      // Generate mock teeth and diseases based on random positions
-      const teeth = Array.from({ length: Math.floor(Math.random() * 8) + 10 }, (_, i) => ({
-        id: i + 1,
-        polygon: generateMockPolygon(),
-        tooth_number: Math.floor(Math.random() * 32) + 1,
-      }));
-
-      const diseases = Array.from({ length: Math.floor(Math.random() * 4) + 1 }, (_, i) => ({
-        id: i + 1,
-        polygon: generateMockPolygon(),
-        disease_type: ['caries', 'periapical_lesion', 'calculus', 'periodontitis'][Math.floor(Math.random() * 4)],
-        tooth_id: teeth[Math.floor(Math.random() * teeth.length)]?.id,
-      }));
-
-      resolve({ teeth, diseases });
-    }, 2500);
-  });
-};
-
-const generateMockPolygon = (): number[][] => {
-  const centerX = Math.random() * 0.6 + 0.2;
-  const centerY = Math.random() * 0.6 + 0.2;
-  const size = Math.random() * 0.08 + 0.04;
-  
-  return [
-    [centerX - size, centerY - size],
-    [centerX + size, centerY - size],
-    [centerX + size, centerY + size],
-    [centerX - size, centerY + size],
-  ];
-};
-
 // Generate a consistent color for teeth based on ID
 const getToothColor = (id: number): string => {
   const colors = [
@@ -70,13 +35,25 @@ const getToothColor = (id: number): string => {
 };
 
 export function DemoAnalysis() {
-  const { t, language } = useI18n();
+  const { t, language, clinicRef } = useI18n();
   const [image, setImage] = useState<string | null>(null);
+  const [imageBase64, setImageBase64] = useState<string | null>(null);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [result, setResult] = useState<AnalysisResult | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [statusMessage, setStatusMessage] = useState<string>('');
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const imageRef = useRef<HTMLImageElement | null>(null);
+  const pollingRef = useRef<NodeJS.Timeout | null>(null);
+
+  // Cleanup polling on unmount
+  useEffect(() => {
+    return () => {
+      if (pollingRef.current) {
+        clearInterval(pollingRef.current);
+      }
+    };
+  }, []);
 
   const onDrop = useCallback((acceptedFiles: File[]) => {
     const file = acceptedFiles[0];
@@ -86,23 +63,107 @@ export function DemoAnalysis() {
       
       const reader = new FileReader();
       reader.onload = () => {
-        setImage(reader.result as string);
-        analyzeImage();
+        const base64 = reader.result as string;
+        setImage(base64);
+        // Extract just the base64 part without the data URL prefix
+        const base64Data = base64.split(',')[1];
+        setImageBase64(base64Data);
       };
       reader.readAsDataURL(file);
     }
   }, []);
 
-  const analyzeImage = async () => {
+  // Start analysis when image is loaded
+  useEffect(() => {
+    if (imageBase64 && !isAnalyzing && !result) {
+      analyzeImage(imageBase64);
+    }
+  }, [imageBase64]);
+
+  const analyzeImage = async (base64Data: string) => {
     setIsAnalyzing(true);
+    setStatusMessage(language === 'tr' ? 'Analiz başlatılıyor...' : 'Starting analysis...');
+    
     try {
-      const analysisResult = await mockAnalysis();
-      setResult(analysisResult);
+      // Submit analysis to edge function
+      const { data: submitData, error: submitError } = await supabase.functions.invoke('demo-analysis', {
+        body: { image_base64: base64Data, clinic_ref: clinicRef },
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+      });
+
+      // Check if response contains query params issue - need to use different approach
+      const submitResponse = await fetch(
+        `https://bllvnenslgntvkvgwgqh.supabase.co/functions/v1/demo-analysis?action=submit`,
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ image_base64: base64Data, clinic_ref: clinicRef }),
+        }
+      );
+
+      if (!submitResponse.ok) {
+        throw new Error('Failed to submit analysis');
+      }
+
+      const submitResult = await submitResponse.json();
+
+      if (!submitResult.job_id) {
+        throw new Error('No job_id received');
+      }
+
+      setStatusMessage(language === 'tr' ? 'Analiz yapılıyor...' : 'Analyzing...');
+
+      // Start polling for result
+      pollForResult(submitResult.job_id);
     } catch (err) {
+      console.error('Analysis error:', err);
       setError(t.home.demo.uploadError);
-    } finally {
       setIsAnalyzing(false);
     }
+  };
+
+  const pollForResult = (jobId: string) => {
+    let attempts = 0;
+    const maxAttempts = 40; // 2 minutes max (40 * 3 seconds)
+
+    pollingRef.current = setInterval(async () => {
+      attempts++;
+
+      if (attempts >= maxAttempts) {
+        clearInterval(pollingRef.current!);
+        setError(language === 'tr' ? 'Analiz zaman aşımına uğradı' : 'Analysis timed out');
+        setIsAnalyzing(false);
+        return;
+      }
+
+      try {
+        const pollResponse = await fetch(
+          `https://bllvnenslgntvkvgwgqh.supabase.co/functions/v1/demo-analysis?action=poll&job_id=${jobId}`
+        );
+
+        if (!pollResponse.ok) {
+          throw new Error('Polling failed');
+        }
+
+        const pollResult = await pollResponse.json();
+
+        if (pollResult.status === 'completed' && pollResult.result) {
+          clearInterval(pollingRef.current!);
+          setResult(pollResult.result);
+          setIsAnalyzing(false);
+          setStatusMessage('');
+        } else if (pollResult.status === 'error') {
+          clearInterval(pollingRef.current!);
+          setError(pollResult.error || t.home.demo.uploadError);
+          setIsAnalyzing(false);
+        }
+        // If pending/processing, continue polling
+      } catch (err) {
+        console.error('Polling error:', err);
+        // Don't stop polling on transient errors
+      }
+    }, 3000); // Poll every 3 seconds
   };
 
   const { getRootProps, getInputProps, isDragActive } = useDropzone({
@@ -166,9 +227,14 @@ export function DemoAnalysis() {
   }, [image, result]);
 
   const reset = () => {
+    if (pollingRef.current) {
+      clearInterval(pollingRef.current);
+    }
     setImage(null);
+    setImageBase64(null);
     setResult(null);
     setError(null);
+    setStatusMessage('');
   };
 
   return (
@@ -206,10 +272,10 @@ export function DemoAnalysis() {
                 className="w-full h-auto"
               />
               {isAnalyzing && (
-                <div className="absolute inset-0 bg-background/80 flex items-center justify-center">
+                <div className="absolute inset-0 bg-background/80 flex flex-col items-center justify-center gap-2">
                   <div className="flex items-center gap-3">
                     <Loader2 className="h-6 w-6 animate-spin text-primary" />
-                    <span className="text-foreground font-medium">{t.home.demo.analyzing}</span>
+                    <span className="text-foreground font-medium">{statusMessage || t.home.demo.analyzing}</span>
                   </div>
                 </div>
               )}

@@ -1,1 +1,4 @@
 project_id = "bllvnenslgntvkvgwgqh"
+
+[functions.demo-analysis]
+verify_jwt = false
