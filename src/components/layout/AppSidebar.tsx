@@ -55,7 +55,7 @@ export function AppSidebar() {
   };
 
   const mainMenuItems = [
-    { title: t.nav.home, url: '/', icon: Home, show: true },
+    { title: t.nav.home, url: '/', icon: Home, show: !user },
     { title: t.nav.dashboard, url: '/dashboard', icon: LayoutDashboard, show: !!user },
     { title: t.nav.patients, url: '/patients', icon: Users, show: isDentist },
     { title: t.nav.suggestions, url: '/suggestions', icon: Lightbulb, show: isDentist },
