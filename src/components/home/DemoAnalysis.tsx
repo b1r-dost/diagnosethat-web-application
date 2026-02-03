@@ -196,29 +196,11 @@ export function DemoAnalysis() {
       // Draw original image
       ctx.drawImage(img, 0, 0);
 
-      // Find bounding box of all polygons to determine coordinate scale
-      let maxX = 0, maxY = 0;
-      result.teeth.forEach((tooth) => {
-        tooth.polygon.forEach(p => {
-          if (p[0] > maxX) maxX = p[0];
-          if (p[1] > maxY) maxY = p[1];
-        });
-      });
-      (result.diseases || []).forEach((disease) => {
-        disease.polygon.forEach(p => {
-          if (p[0] > maxX) maxX = p[0];
-          if (p[1] > maxY) maxY = p[1];
-        });
-      });
-
-      // Calculate scale factors (API returns pixel coords relative to original image)
-      const scaleX = img.width / (maxX || img.width);
-      const scaleY = img.height / (maxY || img.height);
-
       // Draw teeth polygons with orange tones
+      // API returns pixel coordinates matching the original image dimensions
       result.teeth.forEach((tooth) => {
         ctx.beginPath();
-        const points = tooth.polygon.map(p => [p[0] * scaleX, p[1] * scaleY]);
+        const points = tooth.polygon;
         if (points.length > 0) {
           ctx.moveTo(points[0][0], points[0][1]);
           points.forEach(point => ctx.lineTo(point[0], point[1]));
@@ -234,7 +216,7 @@ export function DemoAnalysis() {
       // Draw disease polygons with red
       (result.diseases || []).forEach((disease) => {
         ctx.beginPath();
-        const points = disease.polygon.map(p => [p[0] * scaleX, p[1] * scaleY]);
+        const points = disease.polygon;
         if (points.length > 0) {
           ctx.moveTo(points[0][0], points[0][1]);
           points.forEach(point => ctx.lineTo(point[0], point[1]));
