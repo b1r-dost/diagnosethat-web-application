@@ -26,12 +26,12 @@ interface AnalysisResult {
 // Generate a consistent color for teeth based on ID
 const getToothColor = (id: number): string => {
   const colors = [
-    'rgba(251, 146, 60, 0.25)',  // orange-400
-    'rgba(249, 115, 22, 0.25)',  // orange-500
-    'rgba(234, 88, 12, 0.25)',   // orange-600
-    'rgba(251, 191, 36, 0.25)',  // amber-400
-    'rgba(245, 158, 11, 0.25)',  // amber-500
-    'rgba(217, 119, 6, 0.25)',   // amber-600
+    'rgba(34, 197, 94, 0.3)',   // green-500
+    'rgba(22, 163, 74, 0.3)',   // green-600
+    'rgba(21, 128, 61, 0.3)',   // green-700
+    'rgba(74, 222, 128, 0.3)',  // green-400
+    'rgba(16, 185, 129, 0.3)',  // emerald-500
+    'rgba(5, 150, 105, 0.3)',   // emerald-600
   ];
   return colors[id % colors.length];
 };
@@ -207,7 +207,7 @@ export function DemoAnalysis() {
           ctx.closePath();
           ctx.fillStyle = getToothColor(tooth.tooth_id);
           ctx.fill();
-          ctx.strokeStyle = 'rgba(249, 115, 22, 0.6)';
+          ctx.strokeStyle = 'rgba(34, 197, 94, 0.7)';
           ctx.lineWidth = 2;
           ctx.stroke();
         }
