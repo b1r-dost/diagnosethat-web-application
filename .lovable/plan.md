@@ -1,192 +1,114 @@
 
-# Demo Analiz Sistemi - API Key Entegrasyonu ve Devam Eden Geliştirmeler
+## What’s happening (step-by-step)
 
-## Mevcut Durum Analizi
+1. **The UI uploads an image and calls the Edge Function**  
+   `DemoAnalysis.tsx` sends:
+   ```ts
+   POST /functions/v1/demo-analysis?action=submit
+   body: { image_base64, clinic_ref }
+   ```
 
-Proje aşağıdaki temel işlevleri içeriyor:
-- **Home Page**: Demo analiz bileşeni (`DemoAnalysis.tsx`) mevcut
-- **Edge Function**: `demo-analysis` function'ı Gateway API'ye proxy yapıyor
-- **Problem**: API key henüz eklenmemiş, Gateway istekleri muhtemelen 401/403 hatası döndürüyor
+2. **The Edge Function successfully calls the Gateway API**  
+   Your `demo-analysis` edge function submits `multipart/form-data` correctly and the Gateway responds **200** with a payload like:
+   ```json
+   {
+     "success": true,
+     "data": {
+       "job_id": "....",
+       "status": "pending"
+     }
+   }
+   ```
+   (This matches your earlier network/edge logs.)
 
-## Plan
+3. **But the frontend expects a different JSON shape**  
+   In `DemoAnalysis.tsx`, the code checks:
+   ```ts
+   if (!submitResult.job_id) throw new Error("No job_id received");
+   ```
+   However the job id is actually at:
+   ```ts
+   submitResult.data.job_id
+   ```
+   So the UI throws, and shows: **“Görüntü yüklenirken hata oluştu.”**
 
-### Adım 1: API Key Dosyası Oluşturma (Geçici)
-Geçici olarak API key'i tutacak bir dosya oluşturulacak:
-```
-src/config/api-keys.ts
-```
+4. **Polling likely has the same “nested data” issue**  
+   The UI later expects:
+   ```ts
+   pollResult.status
+   pollResult.result
+   ```
+   But the Gateway commonly wraps those under `data` as well (e.g. `pollResult.data.status`).
 
-Bu dosya `.gitignore`'a eklenmeli (güvenlik için).
+## Fix strategy (robust and future-proof)
 
-**Dosya içeriği:**
-```typescript
-// TEMPORARY - Delete before production
-// This key will be moved to Cloudflare Pages environment variables
-export const GATEWAY_API_KEY = 'dt_1714698d286ef9096ab04fa1396367466493881dff73df4ae4b91f613bb91423';
-```
+### Option A (recommended): Normalize responses inside the Edge Function
+Make the edge function always return a consistent, “flat” JSON response to the frontend, regardless of how the Gateway wraps it.
 
-### Adım 2: Edge Function Güncelleme
-`supabase/functions/demo-analysis/index.ts` dosyası API key kullanacak şekilde güncellenecek:
+**Changes in `supabase/functions/demo-analysis/index.ts`:**
+- For `action=submit`:
+  - Extract `job_id` from `submitResult.job_id || submitResult.data?.job_id`
+  - Return:
+    ```json
+    { "job_id": "...", "status": "pending" }
+    ```
+  - If missing, return 500 with a clear error including the raw Gateway response for debugging.
 
-**Değişiklikler:**
-1. API key'i hardcode olarak ekle (geçici çözüm)
-2. `Authorization: Bearer <api_key>` header'ını Gateway isteklerine ekle
-3. Daha iyi hata mesajları ve loglama ekle
+- For `action=poll`:
+  - Extract `status/result/error` from either top-level or `data`
+  - Return:
+    ```json
+    { "status": "...", "result": {...} }
+    ```
+  - If Gateway returns wrapper fields, unwrap them.
 
-```typescript
-// Gateway API configuration
-const GATEWAY_API_URL = 'https://api.diagnosethat.net';
-const GATEWAY_API_KEY = 'dt_1714698d286ef9096ab04fa1396367466493881dff73df4ae4b91f613bb91423';
+**Why this is best:**  
+You keep the frontend simple and stable, and can change Gateway integration without breaking the UI again.
 
-// Submit endpoint
-const submitResponse = await fetch(`${GATEWAY_API_URL}/v1/submit-analysis`, {
-  method: 'POST',
-  headers: {
-    'Content-Type': 'application/json',
-    'Authorization': `Bearer ${GATEWAY_API_KEY}`,  // YENİ
-  },
-  body: JSON.stringify({...}),
-});
+### Option B (also do this for extra safety): Update the frontend to accept both shapes
+In `src/components/home/DemoAnalysis.tsx`:
+- After `submitResponse.json()`, compute:
+  ```ts
+  const jobId = submitResult.job_id ?? submitResult.data?.job_id;
+  ```
+- Use `jobId` for the “No job_id received” check and for polling.
+- In polling, read:
+  ```ts
+  const status = pollResult.status ?? pollResult.data?.status;
+  const result = pollResult.result ?? pollResult.data?.result;
+  const error = pollResult.error ?? pollResult.data?.error;
+  ```
+This makes the UI resilient even if someone later changes the edge function response shape.
 
-// Poll endpoint
-const pollResponse = await fetch(`${GATEWAY_API_URL}/v1/get-result?job_id=${jobId}`, {
-  method: 'GET',
-  headers: {
-    'Content-Type': 'application/json',
-    'Authorization': `Bearer ${GATEWAY_API_KEY}`,  // YENİ
-  },
-});
-```
+## Implementation steps (what I will change after you approve)
 
-### Adım 3: Giriş Yapmış Kullanıcılar İçin Analiz Edge Function
-Yeni bir edge function oluşturulacak: `analyze-radiograph`
+1. **Edit `supabase/functions/demo-analysis/index.ts`**
+   - Add response normalization for both `submit` and `poll`.
+   - Improve logging:
+     - Log the Gateway response once
+     - Log extracted `job_id` and extracted `status`
+   - Ensure errors returned to the client are informative but not overly verbose.
 
-**Amaç:** Giriş yapmış kullanıcıların yüklediği röntgenleri analiz etmek
+2. **Edit `src/components/home/DemoAnalysis.tsx`**
+   - Accept both `{ job_id }` and `{ data: { job_id } }` response shapes.
+   - Accept both poll shapes similarly.
+   - Improve error UI by showing a more specific message when available (while still defaulting to `t.home.demo.uploadError`).
 
-**Akış:**
-```text
-┌─────────────────────┐
-│ UploadRadiograph.tsx│
-│ - Dosyayı yükle     │
-│ - DB kaydı oluştur  │
-└─────────┬───────────┘
-          │
-          ▼
-┌─────────────────────┐
-│ Analysis.tsx        │
-│ - Edge func çağır   │
-│ - Polling başlat    │
-└─────────┬───────────┘
-          │
-          ▼
-┌─────────────────────┐
-│ analyze-radiograph  │
-│ Edge Function       │
-│ - Storage'dan oku   │
-│ - Gateway'e gönder  │
-│ - DB'yi güncelle    │
-└─────────────────────┘
-```
+3. **Test end-to-end**
+   - Upload a JPG/PNG/WebP on the home page demo.
+   - Confirm:
+     - “Analiz başlatılıyor…” transitions to “Analiz yapılıyor…”
+     - Polling completes and overlays render
+     - No “No job_id received” in console
 
-**Dosya:** `supabase/functions/analyze-radiograph/index.ts`
+## Notes / related (not required for this fix)
+- Your console/network logs show a separate issue: `roadmap_items` query fails with `Invalid schema: public` (only schema `api` exposed). This is unrelated to the demo upload error, but it will keep spamming logs until fixed. If you want, I can plan a second fix for that after the demo analysis is stable.
 
-**Özellikler:**
-- JWT doğrulaması (sadece giriş yapmış kullanıcılar)
-- Storage'dan base64 dönüşümü
-- `profiles` tablosundan `doctor_ref` alma
-- `patients` tablosundan `patient_ref` alma
-- `radiographs` tablosunu `job_id` ile güncelleme
-- Polling sonucu geldiğinde `analysis_result` ve `analysis_status` güncelleme
+## Files involved
+- `supabase/functions/demo-analysis/index.ts` (normalize Gateway response; better logs)
+- `src/components/home/DemoAnalysis.tsx` (read job_id/status from both top-level and nested shapes)
 
-### Adım 4: Analysis.tsx Güncelleme
-Gerçek API entegrasyonu için Analysis sayfasını güncelle:
-
-**Değişiklikler:**
-1. Sayfa yüklendiğinde analiz durumunu kontrol et
-2. Eğer `pending` ise edge function'ı çağırarak analizi başlat
-3. Polling mekanizması ile sonucu bekle
-4. Sonuç geldiğinde gerçek verileri göster (mock data yerine)
-5. Canvas üzerinde gerçek diş ve hastalık polygon'larını çiz
-
-### Adım 5: .gitignore Güncelleme
-API key dosyasını git'e eklememek için:
-
-```
-# Temporary API keys
-src/config/api-keys.ts
-```
-
----
-
-## Teknik Detaylar
-
-### Gateway API Endpoint'leri
-| Endpoint | Method | Açıklama |
-|----------|--------|----------|
-| `/v1/submit-analysis` | POST | Görüntü gönder, `job_id` al |
-| `/v1/get-result?job_id=X` | GET | Analiz sonucunu sorgula |
-
-### Gateway API Request Body (submit-analysis)
-```json
-{
-  "image_base64": "base64_encoded_image",
-  "doctor_ref": "DR-XXXXXX",
-  "clinic_ref": "DiagnoseThat veya TanıYorum",
-  "patient_ref": "PT-XXXXXX",
-  "radiograph_type": "panoramic | bitewing | periapical"
-}
-```
-
-### Gateway API Response (get-result)
-```json
-{
-  "status": "pending | processing | completed | error",
-  "result": {
-    "teeth": [
-      { "id": 1, "polygon": [[0.1, 0.2], ...], "tooth_number": 16 }
-    ],
-    "diseases": [
-      { "id": 1, "polygon": [[0.1, 0.2], ...], "disease_type": "caries", "tooth_id": 1 }
-    ]
-  },
-  "error": "error message if status is error"
-}
-```
-
-### Database Güncellemeleri
-`radiographs` tablosunda mevcut alanlar kullanılacak:
-- `job_id`: Gateway'den dönen job ID
-- `analysis_status`: `pending | processing | completed | failed`
-- `analysis_result`: JSON formatında analiz sonucu
-
----
-
-## Dosya Değişiklikleri Özeti
-
-| Dosya | İşlem |
-|-------|-------|
-| `src/config/api-keys.ts` | Oluştur (geçici) |
-| `.gitignore` | Güncelle |
-| `supabase/functions/demo-analysis/index.ts` | Güncelle (API key ekle) |
-| `supabase/functions/analyze-radiograph/index.ts` | Oluştur |
-| `supabase/config.toml` | Güncelle (yeni function ekle) |
-| `src/pages/Analysis.tsx` | Güncelle (gerçek API entegrasyonu) |
-| `src/pages/UploadRadiograph.tsx` | Güncelle (analizi tetikle) |
-
----
-
-## Güvenlik Notları
-
-1. **Geçici Çözüm**: API key şu an hardcode olarak edge function'a eklenecek
-2. **Production için**: Cloudflare Pages'e deploy ederken API key'i environment variable olarak ekleyeceksiniz
-3. **Supabase Alternative**: İsterseniz Supabase secrets'a da ekleyebiliriz (`GATEWAY_API_KEY` olarak)
-
----
-
-## Test Adımları
-
-Uygulama onaylandıktan sonra:
-1. Ana sayfada demo analiz sistemini test et
-2. Giriş yap ve bir hasta oluştur
-3. Röntgen yükle ve analiz akışını test et
-4. Sonuçların doğru görüntülendiğini kontrol et
+## Acceptance criteria
+- Uploading an image no longer shows “Görüntü yüklenirken hata oluştu.”
+- The demo reliably receives a `job_id`, polls, and renders results when the Gateway completes
+- Console is free of “No job_id received”
