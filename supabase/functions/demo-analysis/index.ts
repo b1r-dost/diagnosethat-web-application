@@ -43,9 +43,30 @@ Deno.serve(async (req) => {
 
       console.log('Submitting demo analysis for clinic:', body.clinic_ref);
 
+      // Detect image type from base64 header
+      let mimeType = 'image/jpeg'; // default
+      const base64Data = body.image_base64;
+      if (base64Data.startsWith('/9j/')) {
+        mimeType = 'image/jpeg';
+      } else if (base64Data.startsWith('iVBORw')) {
+        mimeType = 'image/png';
+      } else if (base64Data.startsWith('UklGR')) {
+        mimeType = 'image/webp';
+      }
+
+      // Convert base64 to binary
+      const binaryString = atob(base64Data);
+      const bytes = new Uint8Array(binaryString.length);
+      for (let i = 0; i < binaryString.length; i++) {
+        bytes[i] = binaryString.charCodeAt(i);
+      }
+      const imageBlob = new Blob([bytes], { type: mimeType });
+
+      console.log('Image blob created, size:', imageBlob.size, 'type:', mimeType);
+
       // Call Gateway API to submit analysis using multipart/form-data
       const formData = new FormData();
-      formData.append('image', body.image_base64);
+      formData.append('image', imageBlob, 'radiograph.jpg');
       formData.append('doctor_ref', 'MainPageDemo');
       formData.append('clinic_ref', body.clinic_ref || 'DiagnoseThat');
       formData.append('patient_ref', 'DemoPatient');

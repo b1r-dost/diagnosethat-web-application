@@ -106,13 +106,30 @@ Deno.serve(async (req) => {
 
       // Convert to base64
       const arrayBuffer = await fileData.arrayBuffer();
-      const base64 = btoa(String.fromCharCode(...new Uint8Array(arrayBuffer)));
+      const uint8Array = new Uint8Array(arrayBuffer);
       
-      console.log('Image converted to base64, size:', base64.length);
+      // Detect MIME type from file data
+      let mimeType = 'image/jpeg'; // default
+      // Check for JPEG magic bytes (0xFF 0xD8 0xFF)
+      if (uint8Array[0] === 0xFF && uint8Array[1] === 0xD8 && uint8Array[2] === 0xFF) {
+        mimeType = 'image/jpeg';
+      }
+      // Check for PNG magic bytes (0x89 0x50 0x4E 0x47)
+      else if (uint8Array[0] === 0x89 && uint8Array[1] === 0x50 && uint8Array[2] === 0x4E && uint8Array[3] === 0x47) {
+        mimeType = 'image/png';
+      }
+      // Check for WebP magic bytes (RIFF....WEBP)
+      else if (uint8Array[0] === 0x52 && uint8Array[1] === 0x49 && uint8Array[2] === 0x46 && uint8Array[3] === 0x46) {
+        mimeType = 'image/webp';
+      }
+
+      const imageBlob = new Blob([uint8Array], { type: mimeType });
+      
+      console.log('Image blob created, size:', imageBlob.size, 'type:', mimeType);
 
       // Submit to Gateway API using multipart/form-data
       const formData = new FormData();
-      formData.append('image', base64);
+      formData.append('image', imageBlob, 'radiograph.jpg');
       formData.append('doctor_ref', profile.doctor_ref || 'UnknownDoctor');
       formData.append('clinic_ref', 'DiagnoseThat');
       formData.append('patient_ref', (radiograph as any).patients?.patient_ref || 'UnknownPatient');
