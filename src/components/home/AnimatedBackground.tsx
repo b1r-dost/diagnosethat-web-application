@@ -1,74 +1,23 @@
-import { useEffect, useRef } from 'react';
-
 export function AnimatedBackground() {
-  const canvasRef = useRef<HTMLCanvasElement>(null);
-
-  useEffect(() => {
-    const canvas = canvasRef.current;
-    if (!canvas) return;
-
-    const ctx = canvas.getContext('2d');
-    if (!ctx) return;
-
-    let animationFrameId: number;
-    let offset = 0;
-
-    const resize = () => {
-      canvas.width = window.innerWidth;
-      canvas.height = window.innerHeight;
-    };
-
-    const draw = () => {
-      if (!ctx || !canvas) return;
-
-      ctx.clearRect(0, 0, canvas.width, canvas.height);
-      
-      // Get computed styles to use theme colors
-      const computedStyle = getComputedStyle(document.documentElement);
-      const isDark = document.documentElement.classList.contains('dark');
-      
-      // Use very subtle line color
-      ctx.strokeStyle = isDark 
-        ? 'rgba(255, 255, 255, 0.03)' 
-        : 'rgba(0, 0, 0, 0.03)';
-      ctx.lineWidth = 1;
-
-      const spacing = 40;
-      const lineLength = Math.max(canvas.width, canvas.height) * 2;
-
-      // Draw diagonal lines moving slowly
-      for (let i = -lineLength; i < lineLength; i += spacing) {
-        ctx.beginPath();
-        ctx.moveTo(i + offset, 0);
-        ctx.lineTo(i + offset + canvas.height, canvas.height);
-        ctx.stroke();
-
-        ctx.beginPath();
-        ctx.moveTo(canvas.width - i - offset, 0);
-        ctx.lineTo(canvas.width - i - offset - canvas.height, canvas.height);
-        ctx.stroke();
-      }
-
-      offset = (offset + 0.2) % spacing;
-      animationFrameId = requestAnimationFrame(draw);
-    };
-
-    resize();
-    draw();
-
-    window.addEventListener('resize', resize);
-
-    return () => {
-      window.removeEventListener('resize', resize);
-      cancelAnimationFrame(animationFrameId);
-    };
-  }, []);
-
   return (
-    <canvas
-      ref={canvasRef}
-      className="fixed inset-0 -z-10 pointer-events-none"
-      aria-hidden="true"
-    />
+    <div className="fixed inset-0 pointer-events-none overflow-hidden z-0">
+      {/* Diagonal moving lines with subtle glow */}
+      {[...Array(8)].map((_, i) => (
+        <div
+          key={i}
+          className="absolute h-[1.5px] w-[200%]"
+          style={{
+            top: `${10 + i * 12}%`,
+            left: '-50%',
+            transform: 'rotate(-15deg)',
+            transformOrigin: 'center center',
+            background: `linear-gradient(90deg, transparent 0%, hsl(var(--primary) / 0.08) 20%, hsl(var(--primary) / 0.25) 50%, hsl(var(--primary) / 0.08) 80%, transparent 100%)`,
+            boxShadow: '0 0 4px hsl(var(--primary) / 0.15)',
+            animation: `slideRight ${15 + i * 2}s linear infinite, pulseGlowSubtle ${4 + (i % 3)}s ease-in-out infinite`,
+            animationDelay: `${i * 1.5}s, ${i * 0.5}s`,
+          }}
+        />
+      ))}
+    </div>
   );
 }
