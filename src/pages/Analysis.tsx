@@ -9,13 +9,18 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Switch } from '@/components/ui/switch';
 import { Label } from '@/components/ui/label';
+import { Slider } from '@/components/ui/slider';
 import { 
   ArrowLeft, 
   Download, 
   Loader2,
   Eye,
   EyeOff,
-  RefreshCw
+  RefreshCw,
+  RotateCcw,
+  Sun,
+  Contrast,
+  Printer
 } from 'lucide-react';
 import {
   Table,
@@ -55,13 +60,17 @@ export default function Analysis() {
   const [showTeethMask, setShowTeethMask] = useState(true);
   const [showDiseaseMask, setShowDiseaseMask] = useState(true);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
+  
+  // Image adjustment controls
+  const [brightness, setBrightness] = useState(100);
+  const [contrast, setContrast] = useState(100);
 
   // Mock findings data - will be replaced with real API data
   const mockFindings: Finding[] = [
-    { id: 1, tooth_number: '16', condition: 'Çürük', confidence: 0.92, severity: 'Orta' },
-    { id: 2, tooth_number: '24', condition: 'Periodontitis', confidence: 0.85, severity: 'Hafif' },
-    { id: 3, tooth_number: '36', condition: 'Kök kanal enfeksiyonu', confidence: 0.78, severity: 'Ciddi' },
-    { id: 4, tooth_number: '45', condition: 'Çürük', confidence: 0.88, severity: 'Hafif' },
+    { id: 1, tooth_number: '16', condition: language === 'tr' ? 'Çürük' : 'Caries', confidence: 0.92, severity: language === 'tr' ? 'Orta' : 'Moderate' },
+    { id: 2, tooth_number: '24', condition: 'Periodontitis', confidence: 0.85, severity: language === 'tr' ? 'Hafif' : 'Mild' },
+    { id: 3, tooth_number: '36', condition: language === 'tr' ? 'Kök kanal enfeksiyonu' : 'Root canal infection', confidence: 0.78, severity: language === 'tr' ? 'Ciddi' : 'Severe' },
+    { id: 4, tooth_number: '45', condition: language === 'tr' ? 'Çürük' : 'Caries', confidence: 0.88, severity: language === 'tr' ? 'Hafif' : 'Mild' },
   ];
 
   useEffect(() => {
@@ -109,17 +118,28 @@ export default function Analysis() {
     }, 3000);
   };
 
+  const handleResetControls = () => {
+    setBrightness(100);
+    setContrast(100);
+  };
+
+  const handlePrint = () => {
+    window.print();
+  };
+
   const getSeverityColor = (severity: string) => {
-    switch (severity.toLowerCase()) {
-      case 'ciddi':
-      case 'severe':
-        return 'text-red-500';
-      case 'orta':
-      case 'moderate':
-        return 'text-amber-500';
-      default:
-        return 'text-green-500';
+    const lowerSeverity = severity.toLowerCase();
+    if (lowerSeverity === 'ciddi' || lowerSeverity === 'severe') {
+      return 'text-destructive';
     }
+    if (lowerSeverity === 'orta' || lowerSeverity === 'moderate') {
+      return 'text-primary';
+    }
+    return 'text-muted-foreground';
+  };
+
+  const imageStyle = {
+    filter: `brightness(${brightness}%) contrast(${contrast}%)`,
   };
 
   if (!isDentist) {
@@ -166,7 +186,11 @@ export default function Analysis() {
               ) : (
                 <RefreshCw className="h-4 w-4 mr-2" />
               )}
-              {language === 'tr' ? 'Yeniden Analiz' : 'Reanalyze'}
+              {t.analysis.controls.reanalyze}
+            </Button>
+            <Button variant="outline" onClick={handlePrint}>
+              <Printer className="h-4 w-4 mr-2" />
+              {t.analysis.controls.print}
             </Button>
             <Button variant="outline">
               <Download className="h-4 w-4 mr-2" />
@@ -179,7 +203,7 @@ export default function Analysis() {
           {/* Image Viewer */}
           <Card>
             <CardHeader className="pb-4">
-              <div className="flex items-center justify-between">
+              <div className="flex items-center justify-between flex-wrap gap-4">
                 <CardTitle>{language === 'tr' ? 'Röntgen Görüntüsü' : 'Radiograph Image'}</CardTitle>
                 <div className="flex items-center gap-4">
                   <div className="flex items-center gap-2">
@@ -190,7 +214,7 @@ export default function Analysis() {
                     />
                     <Label htmlFor="teeth-mask" className="text-sm flex items-center gap-1">
                       {showTeethMask ? <Eye className="h-3 w-3" /> : <EyeOff className="h-3 w-3" />}
-                      {language === 'tr' ? 'Dişler' : 'Teeth'}
+                      {t.analysis.controls.showTeeth}
                     </Label>
                   </div>
                   <div className="flex items-center gap-2">
@@ -201,13 +225,14 @@ export default function Analysis() {
                     />
                     <Label htmlFor="disease-mask" className="text-sm flex items-center gap-1">
                       {showDiseaseMask ? <Eye className="h-3 w-3" /> : <EyeOff className="h-3 w-3" />}
-                      {language === 'tr' ? 'Hastalıklar' : 'Diseases'}
+                      {t.analysis.controls.showDiseases}
                     </Label>
                   </div>
                 </div>
               </div>
             </CardHeader>
-            <CardContent>
+            <CardContent className="space-y-4">
+              {/* Image */}
               <div className="relative bg-muted rounded-lg overflow-hidden">
                 {imageUrl ? (
                   <div className="relative">
@@ -215,6 +240,7 @@ export default function Analysis() {
                       src={imageUrl} 
                       alt="Radiograph" 
                       className="w-full h-auto"
+                      style={imageStyle}
                     />
                     {/* Overlay for masks - placeholder */}
                     {(showTeethMask || showDiseaseMask) && (
@@ -236,7 +262,57 @@ export default function Analysis() {
                   </div>
                 )}
               </div>
-              <p className="text-sm text-muted-foreground mt-2 text-center">
+
+              {/* Image Controls */}
+              <div className="space-y-4 p-4 bg-muted/50 rounded-lg">
+                <div className="flex items-center justify-between">
+                  <span className="text-sm font-medium">
+                    {language === 'tr' ? 'Görüntü Ayarları' : 'Image Settings'}
+                  </span>
+                  <Button variant="ghost" size="sm" onClick={handleResetControls}>
+                    <RotateCcw className="h-3 w-3 mr-1" />
+                    {t.analysis.controls.reset}
+                  </Button>
+                </div>
+                
+                <div className="space-y-3">
+                  <div className="space-y-2">
+                    <div className="flex items-center justify-between">
+                      <Label className="text-sm flex items-center gap-2">
+                        <Sun className="h-4 w-4" />
+                        {t.analysis.controls.brightness}
+                      </Label>
+                      <span className="text-sm text-muted-foreground">{brightness}%</span>
+                    </div>
+                    <Slider
+                      value={[brightness]}
+                      onValueChange={([value]) => setBrightness(value)}
+                      min={50}
+                      max={150}
+                      step={5}
+                    />
+                  </div>
+                  
+                  <div className="space-y-2">
+                    <div className="flex items-center justify-between">
+                      <Label className="text-sm flex items-center gap-2">
+                        <Contrast className="h-4 w-4" />
+                        {t.analysis.controls.contrast}
+                      </Label>
+                      <span className="text-sm text-muted-foreground">{contrast}%</span>
+                    </div>
+                    <Slider
+                      value={[contrast]}
+                      onValueChange={([value]) => setContrast(value)}
+                      min={50}
+                      max={150}
+                      step={5}
+                    />
+                  </div>
+                </div>
+              </div>
+
+              <p className="text-sm text-muted-foreground text-center">
                 {radiograph?.original_filename}
               </p>
             </CardContent>
@@ -245,29 +321,35 @@ export default function Analysis() {
           {/* Analysis Results */}
           <Card>
             <CardHeader>
-              <CardTitle>{language === 'tr' ? 'Analiz Sonuçları' : 'Analysis Results'}</CardTitle>
+              <CardTitle>{t.analysis.report.title}</CardTitle>
             </CardHeader>
             <CardContent>
               {radiograph?.analysis_status === 'pending' || isAnalyzing ? (
                 <div className="h-64 flex flex-col items-center justify-center gap-4">
                   <Loader2 className="h-8 w-8 animate-spin text-primary" />
                   <p className="text-muted-foreground">
-                    {language === 'tr' ? 'Analiz devam ediyor...' : 'Analysis in progress...'}
+                    {t.analysis.processing}
                   </p>
+                </div>
+              ) : mockFindings.length === 0 ? (
+                <div className="h-64 flex items-center justify-center">
+                  <p className="text-muted-foreground">{t.analysis.report.noFindings}</p>
                 </div>
               ) : (
                 <Table>
                   <TableHeader>
                     <TableRow>
-                      <TableHead>{language === 'tr' ? 'Diş No' : 'Tooth #'}</TableHead>
-                      <TableHead>{language === 'tr' ? 'Durum' : 'Condition'}</TableHead>
+                      <TableHead>{t.analysis.report.no}</TableHead>
+                      <TableHead>{t.analysis.report.tooth}</TableHead>
+                      <TableHead>{t.analysis.report.disease}</TableHead>
                       <TableHead>{language === 'tr' ? 'Güven' : 'Confidence'}</TableHead>
                       <TableHead>{language === 'tr' ? 'Şiddet' : 'Severity'}</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {mockFindings.map((finding) => (
+                    {mockFindings.map((finding, index) => (
                       <TableRow key={finding.id}>
+                        <TableCell>{index + 1}</TableCell>
                         <TableCell className="font-medium">{finding.tooth_number}</TableCell>
                         <TableCell>{finding.condition}</TableCell>
                         <TableCell>{(finding.confidence * 100).toFixed(0)}%</TableCell>

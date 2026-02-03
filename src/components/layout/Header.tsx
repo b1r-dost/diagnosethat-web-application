@@ -10,8 +10,8 @@ import {
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { useI18n } from '@/lib/i18n';
 import { useAuth } from '@/hooks/useAuth';
-import { Menu, User, Settings, LogOut, LayoutDashboard, Users, Lightbulb, BookOpen, Shield, Globe } from 'lucide-react';
-import { useState } from 'react';
+import { Menu, Settings, LogOut, LayoutDashboard, Users, Lightbulb, BookOpen, Shield, Globe, Moon, Sun } from 'lucide-react';
+import { useState, useEffect } from 'react';
 import { Sheet, SheetContent, SheetTrigger } from '@/components/ui/sheet';
 
 export function Header() {
@@ -19,6 +19,34 @@ export function Header() {
   const { user, profile, isAdmin, isDentist, signOut } = useAuth();
   const navigate = useNavigate();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [isDark, setIsDark] = useState(() => {
+    if (typeof window !== 'undefined') {
+      return document.documentElement.classList.contains('dark');
+    }
+    return false;
+  });
+
+  useEffect(() => {
+    const root = document.documentElement;
+    if (isDark) {
+      root.classList.add('dark');
+      localStorage.setItem('theme', 'dark');
+    } else {
+      root.classList.remove('dark');
+      localStorage.setItem('theme', 'light');
+    }
+  }, [isDark]);
+
+  useEffect(() => {
+    const savedTheme = localStorage.getItem('theme');
+    if (savedTheme === 'dark') {
+      setIsDark(true);
+    } else if (savedTheme === 'light') {
+      setIsDark(false);
+    } else if (window.matchMedia('(prefers-color-scheme: dark)').matches) {
+      setIsDark(true);
+    }
+  }, []);
 
   const handleSignOut = async () => {
     await signOut();
@@ -127,6 +155,15 @@ export function Header() {
               </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
+
+          {/* Dark Mode Toggle */}
+          <Button 
+            variant="ghost" 
+            size="icon" 
+            onClick={() => setIsDark(!isDark)}
+          >
+            {isDark ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
+          </Button>
 
           {user ? (
             <DropdownMenu>
