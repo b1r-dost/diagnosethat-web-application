@@ -13,6 +13,7 @@ import NewPatient from "./pages/NewPatient";
 import PatientDetail from "./pages/PatientDetail";
 import UploadRadiograph from "./pages/UploadRadiograph";
 import Analysis from "./pages/Analysis";
+import Settings from "./pages/Settings";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -34,6 +35,7 @@ const App = () => (
               <Route path="/patients/:id" element={<PatientDetail />} />
               <Route path="/patients/:id/upload" element={<UploadRadiograph />} />
               <Route path="/analysis/:id" element={<Analysis />} />
+              <Route path="/settings" element={<Settings />} />
               {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
               <Route path="*" element={<NotFound />} />
             </Routes>
