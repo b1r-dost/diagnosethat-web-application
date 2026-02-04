@@ -1,129 +1,254 @@
 
-# Hasta Röntgeni Analiz Hatasını Düzeltme Planı
+# Eksik Özelliklerin Tamamlanması ve Navigasyon Barı Uyumlulaştırma Planı
 
-## Tespit Edilen Sorunlar
+## Tespit Edilen Eksiklikler
 
-### 1. Kritik: Kullanıcı Profili Eksik
-Giriş yapan kullanıcının (`1a0034eb-f1d1-4fea-a286-3af1412a3692`) `profiles` tablosunda kaydı yok. Edge function, analiz gönderiminde `doctor_ref` almak icin profil sorgusu yapiyor ve bulamayinca "User profile not found" hatasi donduruyor.
+### 1. Navigasyon Barı Uyumsuzlukları
 
-### 2. Kritik: Gateway API Yanit Yapisi Hatasi
-`analyze-radiograph` edge function'da polling sirasinda Gateway API'nin yaniti yanlis okunuyor:
-- Gateway yaniti: `{ success: true, data: { status, result } }`
-- Mevcut kod: `pollResult.status` (undefined donuyor)
-- Olmasi gereken: `pollResult.data?.status`
+**Mevcut Durum (AppSidebar.tsx):**
+- Navigasyon barı "Home, Dashboard, Patients, Suggestions, Guide, Admin, Settings" linklerini gösteriyor
+- Çıkış butonu ve kullanıcı bilgileri sidebar'ın alt kısmında
 
-### 3. Guvenlik: Hardcoded API Key
-Edge function'larda API anahtari kod icinde sabit yazilmis. Bu guvenlik riski olusturuyor ve anahtar degisikligini zorlastiriyor.
+**Belgedeki Gereksinim (Sayfa 7):**
+- Navigasyon barının en üstünde sistemin adı ve altında "Dental teşhis asistanı" yazısı yer alacak
+- Diş hekimi için: Karşılama (dashboard), Hastalarım, Kullanım Kılavuzu, Öneride Bulun, Ayarlar, Yönetici Paneli
+- Hasta için: Karşılama (dashboard), Radyograflarım, Ayarlar, Yönetici Paneli
+- Barın en altında çıkış yap butonu olacak
+- Üst barda kullanıcı adı ve yuvarlak profil fotoğrafı
+
+**Eksikler:**
+- "Dental teşhis asistanı" / "Dental diagnosis assistant" alt yazısı yok
+- Hasta rolü için "Radyograflarım" linki yok
+- Rol bazlı navigasyon tam uyumlu değil
+
+### 2. Analiz Sayfası Eksik Kontrolleri
+
+**Mevcut Durum (Analysis.tsx):**
+- "Dişleri belirt" ve "Rahatsızlıkları belirt" switch'leri var
+- Parlaklık ve kontrast slider'ları var
+
+**Belgedeki Gereksinim (Sayfa 9-10):**
+- Dört onay kutusu olmalı:
+  1. Dişleri belirt (varsayılan açık)
+  2. Diş numaralarını göster (varsayılan açık)
+  3. Rahatsızlıkları belirt (varsayılan açık)
+  4. Rahatsızlık adlarını göster (varsayılan açık, sadece rahatsızlıklar açıkken aktif)
+- Fare tekerleği ile zoom
+
+**Eksikler:**
+- "Diş numaralarını göster" switch'i yok
+- "Rahatsızlık adlarını göster" switch'i yok (bağımlı durum kontrolü)
+- Mouse wheel zoom yok
+
+### 3. Şifre Sıfırlama (Auth.tsx)
+
+**Mevcut Durum:**
+- `handleForgotPassword` fonksiyonu TODO olarak işaretli
+- Sadece success mesajı gösteriyor, gerçek e-posta göndermiyor
+
+**Gereksinim:**
+- Gerçek şifre sıfırlama e-postası gönderilmeli
+
+### 4. Rapor Düzenleme (Analysis.tsx)
+
+**Mevcut Durum:**
+- Rapor tablosu salt okunur
+
+**Belgedeki Gereksinim (Sayfa 10):**
+- Rapor elle düzenlenebilir olmalı
+- Satır eklenebilmeli ve silinebilmeli
+- Kaydedilebilmeli
+- Orijinal haline geri getirilebilmeli
 
 ---
 
-## Cozum Plani
+## Uygulama Planı
 
-### Adim 1: Gateway API Yanit Normalizing (analyze-radiograph)
+### Adım 1: Navigasyon Barını Güncelle
 
-`supabase/functions/analyze-radiograph/index.ts` dosyasinda polling kismini duzelt:
+**Dosya: `src/components/layout/AppSidebar.tsx`**
 
-```typescript
-// Satir 223-250 arasi degisecek
-const pollResult = await pollResponse.json();
+Değişiklikler:
+- Header kısmına alt yazı ekle: "Dental teşhis asistanı" / "Dental diagnosis assistant"
+- Hasta rolü için "Radyograflarım" linki ekle (yeni sayfa oluşturulacak)
+- Rol bazlı navigasyonu düzelt
 
-// Gateway yaniti { success: true, data: { status, result } } formatinda
-// Normalize et: hem ust seviye hem data icinden oku
-const status = pollResult.status ?? pollResult.data?.status;
-const result = pollResult.result ?? pollResult.data?.result;
-const errorMessage = pollResult.error_message ?? pollResult.data?.error_message;
+```tsx
+// Header'a alt yazı ekleme
+<SidebarHeader className="p-4">
+  <Link to="/" className="flex flex-col">
+    <div className="flex items-center gap-2">
+      <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary text-primary-foreground font-bold text-sm">
+        {brandName[0]}
+      </div>
+      {!collapsed && (
+        <span className="text-lg font-bold text-primary">{brandName}</span>
+      )}
+    </div>
+    {!collapsed && (
+      <span className="text-xs text-muted-foreground mt-1">
+        {language === 'tr' ? 'Dental teşhis asistanı' : 'Dental diagnosis assistant'}
+      </span>
+    )}
+  </Link>
+</SidebarHeader>
 
-console.log('Poll result - status:', status, 'hasResult:', !!result);
-
-// Eger tamamlandiysa veya hata olduysa veritabanini guncelle
-if (status === 'completed' || status === 'error' || status === 'failed') {
-  const updateData = {
-    analysis_status: status === 'completed' ? 'completed' : 'failed',
-    updated_at: new Date().toISOString(),
-    ...(status === 'completed' && result ? { analysis_result: result } : {})
-  };
-
-  await supabase
-    .from('radiographs')
-    .update(updateData)
-    .eq('job_id', job_id);
-}
-
-// Normalize edilmis yanit don
-return new Response(
-  JSON.stringify({ status, result, error_message: errorMessage }),
-  { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-);
+// Hasta için Radyograflarım linki
+{ title: language === 'tr' ? 'Radyograflarım' : 'My Radiographs', url: '/my-radiographs', icon: Image, show: isPatient && !isDentist },
 ```
 
-### Adim 2: Profil Olusturma Fallback
+### Adım 2: Analiz Sayfasına Eksik Kontrolleri Ekle
 
-Profil bulunamazsa otomatik olusturma eklenir:
+**Dosya: `src/pages/Analysis.tsx`**
 
-```typescript
-// Satir 78-92 arasi degisecek
-let { data: profile, error: profileError } = await supabase
-  .from('profiles')
-  .select('doctor_ref')
-  .eq('user_id', user.id)
-  .single();
+Değişiklikler:
+- `showToothNumbers` ve `showDiseaseNames` state'leri ekle
+- İlgili switch'leri ekle (rahatsızlık adları switch'i bağımlı olacak)
+- Mouse wheel zoom fonksiyonelliği ekle
 
-// Profil yoksa otomatik olustur
-if (profileError || !profile) {
-  console.log('Profile not found, creating one for user:', user.id);
-  
-  const { data: newProfile, error: createError } = await supabase
-    .from('profiles')
-    .insert({
-      user_id: user.id,
-      first_name: user.user_metadata?.first_name || '',
-      last_name: user.user_metadata?.last_name || '',
-    })
-    .select('doctor_ref')
-    .single();
+```tsx
+// Yeni state'ler
+const [showToothNumbers, setShowToothNumbers] = useState(true);
+const [showDiseaseNames, setShowDiseaseNames] = useState(true);
+const [zoom, setZoom] = useState(100);
 
-  if (createError || !newProfile) {
-    console.error('Failed to create profile:', createError);
-    return new Response(
-      JSON.stringify({ error: 'Failed to create user profile' }),
-      { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-    );
+// Mouse wheel zoom handler
+const handleWheel = (e: React.WheelEvent) => {
+  e.preventDefault();
+  const delta = e.deltaY > 0 ? -10 : 10;
+  setZoom(prev => Math.min(200, Math.max(50, prev + delta)));
+};
+
+// Yeni switch'ler
+<div className="flex items-center gap-2">
+  <Switch 
+    id="tooth-numbers" 
+    checked={showToothNumbers}
+    onCheckedChange={setShowToothNumbers}
+    disabled={!showTeethMask}
+  />
+  <Label htmlFor="tooth-numbers" className="text-sm">
+    {t.analysis.controls.showToothNumbers}
+  </Label>
+</div>
+
+<div className="flex items-center gap-2">
+  <Switch 
+    id="disease-names" 
+    checked={showDiseaseNames}
+    onCheckedChange={setShowDiseaseNames}
+    disabled={!showDiseaseMask}
+  />
+  <Label htmlFor="disease-names" className="text-sm">
+    {t.analysis.controls.showDiseaseNames}
+  </Label>
+</div>
+```
+
+### Adım 3: Şifre Sıfırlamayı Tamamla
+
+**Dosya: `src/pages/Auth.tsx`**
+
+Değişiklik:
+- `handleForgotPassword` fonksiyonunda gerçek Supabase API çağrısı
+
+```tsx
+const handleForgotPassword = async (e: React.FormEvent) => {
+  e.preventDefault();
+  setError(null);
+  setIsLoading(true);
+
+  try {
+    const { resetPassword } = useAuth();
+    const { error } = await resetPassword(email);
+    
+    if (error) {
+      setError(error.message);
+    } else {
+      setSuccess(t.auth.resetEmailSent);
+    }
+  } catch (err) {
+    setError(t.common.error);
+  } finally {
+    setIsLoading(false);
   }
-  
-  profile = newProfile;
-}
+};
 ```
 
-### Adim 3: Patient Join Esneklik (Opsiyonel)
+### Adım 4: Rapor Düzenleme Özelliği Ekle
 
-Radiograph sorgusunda `!inner` yerine normal join kullanarak patient olmadan da calismasini sagla:
+**Dosya: `src/pages/Analysis.tsx`**
 
-```typescript
-// Satir 61-65 arasi degisecek
-const { data: radiograph, error: radiographError } = await supabase
-  .from('radiographs')
-  .select('*, patients(patient_ref, dentist_id)')  // !inner kaldirildi
-  .eq('id', radiograph_id)
-  .single();
+Değişiklikler:
+- `editableFindings` state'i ekle (orijinal findings'i korumak için)
+- Satır düzenleme, ekleme, silme fonksiyonları
+- "Orijinal Haline Getir" butonu
+
+```tsx
+// State'ler
+const [editableFindings, setEditableFindings] = useState<Finding[]>([]);
+const [isEditing, setIsEditing] = useState(false);
+
+// Fonksiyonlar
+const handleAddRow = () => {
+  setEditableFindings([...editableFindings, {
+    id: Date.now(),
+    tooth_number: '-',
+    condition: '',
+    confidence: 0,
+    severity: ''
+  }]);
+};
+
+const handleRemoveRow = (id: number) => {
+  setEditableFindings(editableFindings.filter(f => f.id !== id));
+};
+
+const handleResetReport = () => {
+  setEditableFindings([...findings]);
+};
+
+// Butonlar
+<div className="flex gap-2 mt-4">
+  <Button size="sm" variant="outline" onClick={handleAddRow}>
+    {t.analysis.report.addRow}
+  </Button>
+  <Button size="sm" variant="outline" onClick={handleResetReport}>
+    {t.analysis.report.resetReport}
+  </Button>
+</div>
 ```
 
-### Adim 4: API Key Guvenlik (Opsiyonel - Sonraki Asamada)
+### Adım 5: Hasta Rolü için "Radyograflarım" Sayfası Oluştur
 
-API anahtarini Supabase secrets'a tasima:
-1. `GATEWAY_API_KEY` secret'ini Supabase'e ekle
-2. Edge function'da `Deno.env.get('GATEWAY_API_KEY')` kullan
+**Yeni Dosya: `src/pages/MyRadiographs.tsx`**
+
+- Hasta rolündeki kullanıcıların kendi röntgenlerini görebileceği sayfa
+- Röntgen yükleme özelliği
+- Analiz sonuçlarını görüntüleme
+
+### Adım 6: App.tsx'e Yeni Route Ekle
+
+```tsx
+<Route path="/my-radiographs" element={<MyRadiographs />} />
+```
 
 ---
 
-## Teknik Degisiklikler Ozeti
+## Teknik Değişiklikler Özeti
 
-| Dosya | Degisiklik |
-|-------|-----------|
-| `supabase/functions/analyze-radiograph/index.ts` | Gateway yanit normalizasyonu, profil fallback, patient join esnekligi |
+| Dosya | Değişiklik Türü | Açıklama |
+|-------|-----------------|----------|
+| `src/components/layout/AppSidebar.tsx` | Güncelleme | Alt yazı, rol bazlı navigasyon |
+| `src/pages/Analysis.tsx` | Güncelleme | Diş/hastalık numarası switch'leri, zoom, rapor düzenleme |
+| `src/pages/Auth.tsx` | Güncelleme | Şifre sıfırlama fonksiyonelliği |
+| `src/pages/MyRadiographs.tsx` | Yeni Dosya | Hasta röntgen sayfası |
+| `src/App.tsx` | Güncelleme | Yeni route ekleme |
 
-## Beklenen Sonuc
+## Beklenen Sonuçlar
 
-- Kullanici profili yoksa otomatik olusturulacak
-- Gateway API yanitlari dogru parse edilecek
-- Polling sirasinda `status` ve `result` dogru okunacak
-- Analiz sonuclari veritabanina dogru kaydedilecek
+1. Navigasyon barı belgedeki tasarıma uyumlu hale gelecek
+2. Analiz sayfasında diş numaraları ve hastalık adları gösterme kontrolleri çalışacak
+3. Şifre sıfırlama gerçek e-posta gönderecek
+4. Rapor tablosu düzenlenebilir olacak
+5. Hastalar kendi röntgenlerini görüntüleyebilecek
