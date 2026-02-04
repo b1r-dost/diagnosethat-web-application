@@ -10,9 +10,10 @@ export function AnimatedBackground() {
             top: `${10 + i * 12}%`,
             left: '-50%',
             transformOrigin: 'center center',
+            transform: 'rotate(-15deg) translateX(-100%)',
             background: `linear-gradient(90deg, transparent 0%, hsl(var(--primary) / 0.08) 20%, hsl(var(--primary) / 0.25) 50%, hsl(var(--primary) / 0.08) 80%, transparent 100%)`,
             boxShadow: '0 0 4px hsl(var(--primary) / 0.15)',
-            animation: `slideDiagonal ${15 + i * 2}s linear infinite, pulseGlowSubtle ${4 + (i % 3)}s ease-in-out infinite`,
+            animation: `slideDiagonal ${15 + i * 2}s linear infinite backwards, pulseGlowSubtle ${4 + (i % 3)}s ease-in-out infinite`,
             animationDelay: `${i * 1.5}s, ${i * 0.5}s`,
           }}
         />
