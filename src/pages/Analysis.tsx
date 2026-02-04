@@ -567,7 +567,7 @@ export default function Analysis() {
           </div>
         </div>
 
-        <div className="grid lg:grid-cols-2 gap-6">
+        <div className="flex flex-col gap-6">
           {/* Image Viewer */}
           <Card>
             <CardHeader className="pb-4">
