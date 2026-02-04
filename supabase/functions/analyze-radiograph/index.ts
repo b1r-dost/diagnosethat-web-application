@@ -60,7 +60,7 @@ Deno.serve(async (req) => {
       // Get radiograph record
       const { data: radiograph, error: radiographError } = await supabase
         .from('radiographs')
-        .select('*, patients!inner(patient_ref, dentist_id)')
+        .select('*, patients(patient_ref, dentist_id)')
         .eq('id', radiograph_id)
         .single();
 
@@ -75,18 +75,35 @@ Deno.serve(async (req) => {
       console.log('Radiograph found:', radiograph.id);
 
       // Get user profile for doctor_ref
-      const { data: profile, error: profileError } = await supabase
+      let { data: profile, error: profileError } = await supabase
         .from('profiles')
         .select('doctor_ref')
         .eq('user_id', user.id)
         .single();
 
+      // Profile yoksa otomatik oluştur
       if (profileError || !profile) {
-        console.error('Profile not found:', profileError);
-        return new Response(
-          JSON.stringify({ error: 'User profile not found' }),
-          { status: 404, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-        );
+        console.log('Profile not found, creating one for user:', user.id);
+        
+        const { data: newProfile, error: createError } = await supabase
+          .from('profiles')
+          .insert({
+            user_id: user.id,
+            first_name: user.user_metadata?.first_name || '',
+            last_name: user.user_metadata?.last_name || '',
+          })
+          .select('doctor_ref')
+          .single();
+
+        if (createError || !newProfile) {
+          console.error('Failed to create profile:', createError);
+          return new Response(
+            JSON.stringify({ error: 'Failed to create user profile' }),
+            { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          );
+        }
+        
+        profile = newProfile;
       }
 
       console.log('Doctor ref:', profile.doctor_ref);
@@ -221,17 +238,29 @@ Deno.serve(async (req) => {
       }
 
       const pollResult = await pollResponse.json();
-      console.log('Poll result status:', pollResult.status);
+      
+      // Gateway yanıtı { success: true, data: { status, result } } formatında
+      // Normalize et: hem üst seviye hem data içinden oku
+      const status = pollResult.status ?? pollResult.data?.status;
+      const result = pollResult.result ?? pollResult.data?.result;
+      const errorMessage = pollResult.error_message ?? pollResult.data?.error_message;
+      const radiographType = pollResult.radiograph_type ?? pollResult.data?.radiograph_type;
+      
+      console.log('Poll result - status:', status, 'hasResult:', !!result);
 
-      // If completed or error, update the database
-      if (pollResult.status === 'completed' || pollResult.status === 'error') {
+      // Eğer tamamlandıysa veya hata olduysa veritabanını güncelle
+      if (status === 'completed' || status === 'error' || status === 'failed') {
         const updateData: Record<string, unknown> = {
-          analysis_status: pollResult.status === 'completed' ? 'completed' : 'failed',
+          analysis_status: status === 'completed' ? 'completed' : 'failed',
           updated_at: new Date().toISOString()
         };
 
-        if (pollResult.status === 'completed' && pollResult.result) {
-          updateData.analysis_result = pollResult.result;
+        if (status === 'completed' && result) {
+          updateData.analysis_result = result;
+        }
+        
+        if (radiographType) {
+          updateData.radiograph_type = radiographType;
         }
 
         const { error: updateError } = await supabase
@@ -244,8 +273,9 @@ Deno.serve(async (req) => {
         }
       }
 
+      // Normalize edilmiş yanıt dön
       return new Response(
-        JSON.stringify(pollResult),
+        JSON.stringify({ status, result, error_message: errorMessage, radiograph_type: radiographType }),
         { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
