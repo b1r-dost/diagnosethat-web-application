@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { MainLayout } from '@/components/layout/MainLayout';
 import { useI18n } from '@/lib/i18n';
@@ -48,15 +48,20 @@ interface Radiograph {
 }
 
 interface AnalysisResult {
+  radiograph_type?: string;
+  inference_version?: string;
   teeth?: Array<{
-    id: number;
+    id?: number;
+    tooth_id?: number;
     polygon: number[][];
-    tooth_number: number;
+    tooth_number?: number;
+    confidence?: number;
   }>;
   diseases?: Array<{
-    id: number;
+    id?: number;
     polygon: number[][];
-    disease_type: string;
+    disease_type?: string;
+    type?: string;
     tooth_id?: number;
     confidence?: number;
   }>;
@@ -92,25 +97,136 @@ export default function Analysis() {
   const [brightness, setBrightness] = useState(100);
   const [contrast, setContrast] = useState(100);
   const [zoom, setZoom] = useState(100);
+  
+  // Canvas refs for polygon rendering
+  const canvasRef = useRef<HTMLCanvasElement>(null);
+  const imageRef = useRef<HTMLImageElement | null>(null);
+  const [imageLoaded, setImageLoaded] = useState(false);
+
+  // Generate consistent color for teeth based on ID
+  const getToothColor = (id: number): string => {
+    const colors = [
+      'rgba(34, 197, 94, 0.3)',   // green-500
+      'rgba(22, 163, 74, 0.3)',   // green-600
+      'rgba(21, 128, 61, 0.3)',   // green-700
+      'rgba(74, 222, 128, 0.3)',  // green-400
+      'rgba(16, 185, 129, 0.3)',  // emerald-500
+      'rgba(5, 150, 105, 0.3)',   // emerald-600
+    ];
+    return colors[id % colors.length];
+  };
+
+  // Draw overlays on canvas
+  const drawOverlays = useCallback(() => {
+    if (!canvasRef.current || !imageRef.current) return;
+    
+    const canvas = canvasRef.current;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return;
+    
+    const img = imageRef.current;
+    canvas.width = img.naturalWidth;
+    canvas.height = img.naturalHeight;
+    
+    // Draw original image with filters
+    ctx.filter = `brightness(${brightness}%) contrast(${contrast}%)`;
+    ctx.drawImage(img, 0, 0);
+    ctx.filter = 'none';
+    
+    // Get analysis result - use type assertion since DB stores as Json
+    const result = radiograph?.analysis_result as AnalysisResult | null;
+    if (!result) return;
+    
+    // Draw teeth polygons
+    if (showTeethMask && result.teeth) {
+      result.teeth.forEach((tooth) => {
+        const points = tooth.polygon;
+        if (points && points.length > 0) {
+          ctx.beginPath();
+          ctx.moveTo(points[0][0], points[0][1]);
+          points.forEach(point => ctx.lineTo(point[0], point[1]));
+          ctx.closePath();
+          ctx.fillStyle = getToothColor(tooth.tooth_id ?? tooth.id ?? 0);
+          ctx.fill();
+          ctx.strokeStyle = 'rgba(34, 197, 94, 0.7)';
+          ctx.lineWidth = 2;
+          ctx.stroke();
+          
+          // Draw tooth number
+          if (showToothNumbers) {
+            const centerX = points.reduce((sum, p) => sum + p[0], 0) / points.length;
+            const centerY = points.reduce((sum, p) => sum + p[1], 0) / points.length;
+            const toothNum = String(tooth.tooth_id ?? tooth.tooth_number ?? tooth.id ?? '?');
+            ctx.font = 'bold 16px sans-serif';
+            ctx.fillStyle = 'white';
+            ctx.strokeStyle = 'black';
+            ctx.lineWidth = 3;
+            ctx.strokeText(toothNum, centerX - 8, centerY + 6);
+            ctx.fillText(toothNum, centerX - 8, centerY + 6);
+          }
+        }
+      });
+    }
+    
+    // Draw disease polygons
+    if (showDiseaseMask && result.diseases) {
+      result.diseases.forEach((disease) => {
+        const points = disease.polygon;
+        if (points && points.length > 0) {
+          ctx.beginPath();
+          ctx.moveTo(points[0][0], points[0][1]);
+          points.forEach(point => ctx.lineTo(point[0], point[1]));
+          ctx.closePath();
+          ctx.fillStyle = 'rgba(239, 68, 68, 0.55)';
+          ctx.fill();
+          ctx.strokeStyle = 'rgba(220, 38, 38, 1)';
+          ctx.lineWidth = 2;
+          ctx.stroke();
+          
+          // Draw disease name
+          if (showDiseaseNames) {
+            const centerX = points.reduce((sum, p) => sum + p[0], 0) / points.length;
+            const centerY = points.reduce((sum, p) => sum + p[1], 0) / points.length;
+            const label = disease.disease_type ?? disease.type ?? 'Unknown';
+            ctx.font = 'bold 14px sans-serif';
+            ctx.fillStyle = 'white';
+            ctx.strokeStyle = 'rgba(220, 38, 38, 1)';
+            ctx.lineWidth = 3;
+            ctx.strokeText(label, centerX - 30, centerY);
+            ctx.fillText(label, centerX - 30, centerY);
+          }
+        }
+      });
+    }
+  }, [radiograph, showTeethMask, showDiseaseMask, showToothNumbers, showDiseaseNames, brightness, contrast]);
+
+  // Redraw canvas when controls change
+  useEffect(() => {
+    if (imageLoaded) {
+      drawOverlays();
+    }
+  }, [imageLoaded, drawOverlays]);
 
   // Parse analysis result to findings
   const parseResultToFindings = useCallback((result: AnalysisResult | null): Finding[] => {
     if (!result || !result.diseases) return [];
     
     return result.diseases.map((disease, index) => ({
-      id: disease.id || index + 1,
+      id: disease.id ?? index + 1,
       tooth_number: disease.tooth_id?.toString() || '-',
-      condition: getDiseaseLabel(disease.disease_type),
+      condition: getDiseaseLabel(disease.disease_type ?? disease.type),
       confidence: disease.confidence || 0.85,
-      severity: getSeverityFromType(disease.disease_type),
+      severity: getSeverityFromType(disease.disease_type ?? disease.type ?? ''),
     }));
   }, []);
 
-  const getDiseaseLabel = (type: string): string => {
+  const getDiseaseLabel = (type: string | undefined): string => {
+    if (!type) return language === 'tr' ? 'Bilinmiyor' : 'Unknown';
     const labels: Record<string, string> = {
       caries: language === 'tr' ? 'Çürük' : 'Caries',
       periodontitis: 'Periodontitis',
       periapical_lesion: language === 'tr' ? 'Periapikal Lezyon' : 'Periapical Lesion',
+      'Periapical Lesion': language === 'tr' ? 'Periapikal Lezyon' : 'Periapical Lesion',
       root_canal: language === 'tr' ? 'Kök Kanal Enfeksiyonu' : 'Root Canal Infection',
       bone_loss: language === 'tr' ? 'Kemik Kaybı' : 'Bone Loss',
       impacted: language === 'tr' ? 'Gömülü Diş' : 'Impacted Tooth',
@@ -392,11 +508,7 @@ export default function Analysis() {
     return 'text-muted-foreground';
   };
 
-  const imageStyle = {
-    filter: `brightness(${brightness}%) contrast(${contrast}%)`,
-    transform: `scale(${zoom / 100})`,
-    transformOrigin: 'center center',
-  };
+  // imageStyle is now handled via canvas drawing
 
   if (!isDentist) {
     return (
@@ -522,38 +634,38 @@ export default function Analysis() {
               </div>
             </CardHeader>
             <CardContent className="space-y-4">
-              {/* Image with wheel zoom */}
+              {/* Image with wheel zoom - using canvas for polygon rendering */}
               <div 
                 className="relative bg-muted rounded-lg overflow-hidden cursor-zoom-in"
                 onWheel={handleWheel}
+                style={{ 
+                  transform: `scale(${zoom / 100})`, 
+                  transformOrigin: 'center center' 
+                }}
               >
                 {imageUrl ? (
                   <div className="relative">
+                    {/* Hidden image - source for canvas */}
                     <img 
+                      ref={(el) => {
+                        if (el) {
+                          imageRef.current = el;
+                        }
+                      }}
                       src={imageUrl} 
                       alt="Radiograph" 
-                      className="w-full h-auto"
-                      style={imageStyle}
+                      className="hidden"
+                      crossOrigin="anonymous"
+                      onLoad={() => {
+                        setImageLoaded(true);
+                        drawOverlays();
+                      }}
                     />
-                    {/* Overlay for masks - placeholder for real polygon rendering */}
-                    {(showTeethMask || showDiseaseMask) && radiograph?.analysis_result && (
-                      <div className="absolute inset-0 pointer-events-none">
-                        {showTeethMask && (
-                          <div className="absolute inset-0 bg-primary/10" />
-                        )}
-                        {showDiseaseMask && radiograph.analysis_result.diseases?.map((disease, idx) => (
-                          <div 
-                            key={idx}
-                            className="absolute w-6 h-6 bg-destructive/40 rounded-full border-2 border-destructive"
-                            style={{
-                              // Placeholder positioning - will be replaced with actual polygon rendering
-                              top: `${20 + idx * 15}%`,
-                              left: `${25 + idx * 10}%`,
-                            }}
-                          />
-                        ))}
-                      </div>
-                    )}
+                    {/* Visible canvas with polygon overlays */}
+                    <canvas
+                      ref={canvasRef}
+                      className="w-full h-auto"
+                    />
                   </div>
                 ) : (
                   <div className="h-96 flex items-center justify-center">
