@@ -8,6 +8,7 @@ import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { useI18n } from '@/lib/i18n';
 import { useAuth } from '@/hooks/useAuth';
+import { supabase } from '@/integrations/supabase/client';
 import { MainLayout } from '@/components/layout/MainLayout';
 import { Loader2, AlertCircle, Stethoscope, User } from 'lucide-react';
 import { z } from 'zod';
@@ -135,9 +136,21 @@ export default function AuthPage() {
     setError(null);
     setIsLoading(true);
 
-    // TODO: Implement forgot password
-    setSuccess(t.auth.resetEmailSent);
-    setIsLoading(false);
+    try {
+      const { error } = await supabase.auth.resetPasswordForEmail(email, {
+        redirectTo: `${window.location.origin}/auth?mode=login`,
+      });
+      
+      if (error) {
+        setError(error.message);
+      } else {
+        setSuccess(t.auth.resetEmailSent);
+      }
+    } catch (err) {
+      setError(t.common.error);
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   if (authLoading) {
