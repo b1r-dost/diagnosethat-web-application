@@ -21,7 +21,11 @@ import {
   RotateCcw,
   Sun,
   Contrast,
-  Printer
+  Printer,
+  Plus,
+  Trash2,
+  RotateCw,
+  ZoomIn
 } from 'lucide-react';
 import {
   Table,
@@ -31,7 +35,7 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
-
+import { Input } from '@/components/ui/input';
 interface Radiograph {
   id: string;
   original_filename: string | null;
@@ -76,13 +80,18 @@ export default function Analysis() {
   const [isLoading, setIsLoading] = useState(true);
   const [showTeethMask, setShowTeethMask] = useState(true);
   const [showDiseaseMask, setShowDiseaseMask] = useState(true);
+  const [showToothNumbers, setShowToothNumbers] = useState(true);
+  const [showDiseaseNames, setShowDiseaseNames] = useState(true);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [statusMessage, setStatusMessage] = useState<string>('');
   const [findings, setFindings] = useState<Finding[]>([]);
+  const [editableFindings, setEditableFindings] = useState<Finding[]>([]);
+  const [originalFindings, setOriginalFindings] = useState<Finding[]>([]);
   
   // Image adjustment controls
   const [brightness, setBrightness] = useState(100);
   const [contrast, setContrast] = useState(100);
+  const [zoom, setZoom] = useState(100);
 
   // Parse analysis result to findings
   const parseResultToFindings = useCallback((result: AnalysisResult | null): Finding[] => {
@@ -141,7 +150,10 @@ export default function Analysis() {
       
       // Parse findings from result if available
       if (data.analysis_result) {
-        setFindings(parseResultToFindings(data.analysis_result as AnalysisResult));
+        const parsedFindings = parseResultToFindings(data.analysis_result as AnalysisResult);
+        setFindings(parsedFindings);
+        setEditableFindings([...parsedFindings]);
+        setOriginalFindings([...parsedFindings]);
       }
 
       // Get signed URL for image
@@ -249,7 +261,10 @@ export default function Analysis() {
           // Refresh radiograph data to get the result
           const updatedData = await fetchRadiograph();
           if (updatedData?.analysis_result) {
-            setFindings(parseResultToFindings(updatedData.analysis_result));
+            const parsedFindings = parseResultToFindings(updatedData.analysis_result);
+            setFindings(parsedFindings);
+            setEditableFindings([...parsedFindings]);
+            setOriginalFindings([...parsedFindings]);
           }
           return;
         }
@@ -326,10 +341,44 @@ export default function Analysis() {
   const handleResetControls = () => {
     setBrightness(100);
     setContrast(100);
+    setZoom(100);
   };
 
   const handlePrint = () => {
     window.print();
+  };
+
+  // Editable report functions
+  const handleAddRow = () => {
+    const newFinding: Finding = {
+      id: Date.now(),
+      tooth_number: '-',
+      condition: '',
+      confidence: 0,
+      severity: language === 'tr' ? 'Bilinmiyor' : 'Unknown',
+    };
+    setEditableFindings([...editableFindings, newFinding]);
+  };
+
+  const handleRemoveRow = (id: number) => {
+    setEditableFindings(editableFindings.filter(f => f.id !== id));
+  };
+
+  const handleResetReport = () => {
+    setEditableFindings([...originalFindings]);
+  };
+
+  const handleUpdateFinding = (id: number, field: keyof Finding, value: string | number) => {
+    setEditableFindings(editableFindings.map(f => 
+      f.id === id ? { ...f, [field]: value } : f
+    ));
+  };
+
+  // Mouse wheel zoom handler
+  const handleWheel = (e: React.WheelEvent) => {
+    e.preventDefault();
+    const delta = e.deltaY > 0 ? -10 : 10;
+    setZoom(prev => Math.min(200, Math.max(50, prev + delta)));
   };
 
   const getSeverityColor = (severity: string) => {
@@ -345,6 +394,8 @@ export default function Analysis() {
 
   const imageStyle = {
     filter: `brightness(${brightness}%) contrast(${contrast}%)`,
+    transform: `scale(${zoom / 100})`,
+    transformOrigin: 'center center',
   };
 
   if (!isDentist) {
@@ -408,37 +459,74 @@ export default function Analysis() {
           {/* Image Viewer */}
           <Card>
             <CardHeader className="pb-4">
-              <div className="flex items-center justify-between flex-wrap gap-4">
-                <CardTitle>{language === 'tr' ? 'Röntgen Görüntüsü' : 'Radiograph Image'}</CardTitle>
-                <div className="flex items-center gap-4">
-                  <div className="flex items-center gap-2">
-                    <Switch 
-                      id="teeth-mask" 
-                      checked={showTeethMask}
-                      onCheckedChange={setShowTeethMask}
-                    />
-                    <Label htmlFor="teeth-mask" className="text-sm flex items-center gap-1">
-                      {showTeethMask ? <Eye className="h-3 w-3" /> : <EyeOff className="h-3 w-3" />}
-                      {t.analysis.controls.showTeeth}
-                    </Label>
+              <div className="flex flex-col gap-4">
+                <div className="flex items-center justify-between">
+                  <CardTitle>{language === 'tr' ? 'Röntgen Görüntüsü' : 'Radiograph Image'}</CardTitle>
+                  <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                    <ZoomIn className="h-4 w-4" />
+                    <span>{zoom}%</span>
                   </div>
-                  <div className="flex items-center gap-2">
-                    <Switch 
-                      id="disease-mask" 
-                      checked={showDiseaseMask}
-                      onCheckedChange={setShowDiseaseMask}
-                    />
-                    <Label htmlFor="disease-mask" className="text-sm flex items-center gap-1">
-                      {showDiseaseMask ? <Eye className="h-3 w-3" /> : <EyeOff className="h-3 w-3" />}
-                      {t.analysis.controls.showDiseases}
-                    </Label>
+                </div>
+                <div className="grid grid-cols-2 gap-4">
+                  {/* Teeth Controls */}
+                  <div className="space-y-2">
+                    <div className="flex items-center gap-2">
+                      <Switch 
+                        id="teeth-mask" 
+                        checked={showTeethMask}
+                        onCheckedChange={setShowTeethMask}
+                      />
+                      <Label htmlFor="teeth-mask" className="text-sm flex items-center gap-1">
+                        {showTeethMask ? <Eye className="h-3 w-3" /> : <EyeOff className="h-3 w-3" />}
+                        {t.analysis.controls.showTeeth}
+                      </Label>
+                    </div>
+                    <div className="flex items-center gap-2 ml-6">
+                      <Switch 
+                        id="tooth-numbers" 
+                        checked={showToothNumbers}
+                        onCheckedChange={setShowToothNumbers}
+                        disabled={!showTeethMask}
+                      />
+                      <Label htmlFor="tooth-numbers" className={`text-sm ${!showTeethMask ? 'text-muted-foreground' : ''}`}>
+                        {t.analysis.controls.showToothNumbers}
+                      </Label>
+                    </div>
+                  </div>
+                  {/* Disease Controls */}
+                  <div className="space-y-2">
+                    <div className="flex items-center gap-2">
+                      <Switch 
+                        id="disease-mask" 
+                        checked={showDiseaseMask}
+                        onCheckedChange={setShowDiseaseMask}
+                      />
+                      <Label htmlFor="disease-mask" className="text-sm flex items-center gap-1">
+                        {showDiseaseMask ? <Eye className="h-3 w-3" /> : <EyeOff className="h-3 w-3" />}
+                        {t.analysis.controls.showDiseases}
+                      </Label>
+                    </div>
+                    <div className="flex items-center gap-2 ml-6">
+                      <Switch 
+                        id="disease-names" 
+                        checked={showDiseaseNames}
+                        onCheckedChange={setShowDiseaseNames}
+                        disabled={!showDiseaseMask}
+                      />
+                      <Label htmlFor="disease-names" className={`text-sm ${!showDiseaseMask ? 'text-muted-foreground' : ''}`}>
+                        {t.analysis.controls.showDiseaseNames}
+                      </Label>
+                    </div>
                   </div>
                 </div>
               </div>
             </CardHeader>
             <CardContent className="space-y-4">
-              {/* Image */}
-              <div className="relative bg-muted rounded-lg overflow-hidden">
+              {/* Image with wheel zoom */}
+              <div 
+                className="relative bg-muted rounded-lg overflow-hidden cursor-zoom-in"
+                onWheel={handleWheel}
+              >
                 {imageUrl ? (
                   <div className="relative">
                     <img 
@@ -522,6 +610,23 @@ export default function Analysis() {
                       step={5}
                     />
                   </div>
+
+                  <div className="space-y-2">
+                    <div className="flex items-center justify-between">
+                      <Label className="text-sm flex items-center gap-2">
+                        <ZoomIn className="h-4 w-4" />
+                        Zoom
+                      </Label>
+                      <span className="text-sm text-muted-foreground">{zoom}%</span>
+                    </div>
+                    <Slider
+                      value={[zoom]}
+                      onValueChange={([value]) => setZoom(value)}
+                      min={50}
+                      max={200}
+                      step={10}
+                    />
+                  </div>
                 </div>
               </div>
 
@@ -544,7 +649,7 @@ export default function Analysis() {
                     {statusMessage || t.analysis.processing}
                   </p>
                 </div>
-              ) : findings.length === 0 ? (
+              ) : editableFindings.length === 0 && findings.length === 0 ? (
                 <div className="h-64 flex items-center justify-center">
                   <p className="text-muted-foreground">
                     {radiograph?.analysis_status === 'completed' 
@@ -553,30 +658,71 @@ export default function Analysis() {
                   </p>
                 </div>
               ) : (
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>{t.analysis.report.no}</TableHead>
-                      <TableHead>{t.analysis.report.tooth}</TableHead>
-                      <TableHead>{t.analysis.report.disease}</TableHead>
-                      <TableHead>{language === 'tr' ? 'Güven' : 'Confidence'}</TableHead>
-                      <TableHead>{language === 'tr' ? 'Şiddet' : 'Severity'}</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {findings.map((finding, index) => (
-                      <TableRow key={finding.id}>
-                        <TableCell>{index + 1}</TableCell>
-                        <TableCell className="font-medium">{finding.tooth_number}</TableCell>
-                        <TableCell>{finding.condition}</TableCell>
-                        <TableCell>{(finding.confidence * 100).toFixed(0)}%</TableCell>
-                        <TableCell className={getSeverityColor(finding.severity)}>
-                          {finding.severity}
-                        </TableCell>
+                <div className="space-y-4">
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead className="w-12">{t.analysis.report.no}</TableHead>
+                        <TableHead className="w-24">{t.analysis.report.tooth}</TableHead>
+                        <TableHead>{t.analysis.report.disease}</TableHead>
+                        <TableHead className="w-24">{language === 'tr' ? 'Güven' : 'Confidence'}</TableHead>
+                        <TableHead className="w-24">{language === 'tr' ? 'Şiddet' : 'Severity'}</TableHead>
+                        <TableHead className="w-12"></TableHead>
                       </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
+                    </TableHeader>
+                    <TableBody>
+                      {editableFindings.map((finding, index) => (
+                        <TableRow key={finding.id}>
+                          <TableCell>{index + 1}</TableCell>
+                          <TableCell>
+                            <Input
+                              value={finding.tooth_number}
+                              onChange={(e) => handleUpdateFinding(finding.id, 'tooth_number', e.target.value)}
+                              className="h-8 w-16"
+                            />
+                          </TableCell>
+                          <TableCell>
+                            <Input
+                              value={finding.condition}
+                              onChange={(e) => handleUpdateFinding(finding.id, 'condition', e.target.value)}
+                              className="h-8"
+                            />
+                          </TableCell>
+                          <TableCell>{(finding.confidence * 100).toFixed(0)}%</TableCell>
+                          <TableCell className={getSeverityColor(finding.severity)}>
+                            <Input
+                              value={finding.severity}
+                              onChange={(e) => handleUpdateFinding(finding.id, 'severity', e.target.value)}
+                              className="h-8 w-20"
+                            />
+                          </TableCell>
+                          <TableCell>
+                            <Button 
+                              variant="ghost" 
+                              size="icon" 
+                              className="h-8 w-8 text-destructive hover:text-destructive"
+                              onClick={() => handleRemoveRow(finding.id)}
+                            >
+                              <Trash2 className="h-4 w-4" />
+                            </Button>
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                  
+                  {/* Report Action Buttons */}
+                  <div className="flex gap-2 flex-wrap">
+                    <Button size="sm" variant="outline" onClick={handleAddRow}>
+                      <Plus className="h-4 w-4 mr-1" />
+                      {t.analysis.report.addRow}
+                    </Button>
+                    <Button size="sm" variant="outline" onClick={handleResetReport}>
+                      <RotateCw className="h-4 w-4 mr-1" />
+                      {t.analysis.report.resetReport}
+                    </Button>
+                  </div>
+                </div>
               )}
             </CardContent>
           </Card>

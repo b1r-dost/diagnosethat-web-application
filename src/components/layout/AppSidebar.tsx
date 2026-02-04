@@ -7,7 +7,8 @@ import {
   Shield, 
   Settings, 
   LogOut,
-  Home
+  Home,
+  Image
 } from 'lucide-react';
 import { useI18n } from '@/lib/i18n';
 import { useAuth } from '@/hooks/useAuth';
@@ -30,8 +31,8 @@ import { Button } from '@/components/ui/button';
 import { Separator } from '@/components/ui/separator';
 
 export function AppSidebar() {
-  const { t, brandName } = useI18n();
-  const { user, profile, isAdmin, isDentist, signOut } = useAuth();
+  const { t, brandName, language } = useI18n();
+  const { user, profile, isAdmin, isDentist, isPatient, signOut } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
   const { state } = useSidebar();
@@ -58,6 +59,7 @@ export function AppSidebar() {
     { title: t.nav.home, url: '/', icon: Home, show: !user },
     { title: t.nav.dashboard, url: '/dashboard', icon: LayoutDashboard, show: !!user },
     { title: t.nav.patients, url: '/patients', icon: Users, show: isDentist },
+    { title: language === 'tr' ? 'Radyograflarım' : 'My Radiographs', url: '/my-radiographs', icon: Image, show: isPatient && !isDentist },
     { title: t.nav.suggestions, url: '/suggestions', icon: Lightbulb, show: isDentist },
     { title: t.nav.guide, url: '/guide', icon: BookOpen, show: !!user },
     { title: t.nav.admin, url: '/admin', icon: Shield, show: isAdmin },
@@ -66,12 +68,19 @@ export function AppSidebar() {
   return (
     <Sidebar collapsible="icon">
       <SidebarHeader className="p-4">
-        <Link to="/" className="flex items-center gap-2">
-          <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary text-primary-foreground font-bold text-sm">
-            {brandName[0]}
+        <Link to="/" className="flex flex-col gap-1">
+          <div className="flex items-center gap-2">
+            <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary text-primary-foreground font-bold text-sm">
+              {brandName[0]}
+            </div>
+            {!collapsed && (
+              <span className="text-lg font-bold text-primary">{brandName}</span>
+            )}
           </div>
           {!collapsed && (
-            <span className="text-lg font-bold text-primary">{brandName}</span>
+            <span className="text-xs text-muted-foreground ml-10">
+              {language === 'tr' ? 'Dental teşhis asistanı' : 'Dental diagnosis assistant'}
+            </span>
           )}
         </Link>
       </SidebarHeader>
