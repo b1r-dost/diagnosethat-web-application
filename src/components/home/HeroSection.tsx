@@ -18,11 +18,6 @@ export function HeroSection() {
       
       <div className="container relative mx-auto px-4 text-center">
         <div className="animate-slide-up">
-          {/* Badge */}
-          <div className="inline-flex items-center gap-2 mb-6 rounded-full bg-primary/10 px-4 py-1.5 text-sm font-medium text-primary border border-primary/20">
-            <Sparkles className="h-4 w-4" />
-            {language === 'tr' ? 'Yapay Zeka Destekli' : 'AI-Powered'}
-          </div>
           
           <h1 className="mb-6 text-4xl font-bold tracking-tight text-foreground sm:text-5xl lg:text-6xl xl:text-7xl">
             <span className="block">{t.brand.tagline}</span>
