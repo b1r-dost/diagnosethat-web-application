@@ -13,31 +13,58 @@ interface I18nContextType {
 
 const I18nContext = createContext<I18nContextType | undefined>(undefined);
 
+// Helper function to update favicon
+function updateFavicon(href: string) {
+  let link = document.querySelector("link[rel~='icon']") as HTMLLinkElement;
+  if (link) {
+    link.href = href;
+  } else {
+    link = document.createElement('link');
+    link.rel = 'icon';
+    link.type = 'image/svg+xml';
+    link.href = href;
+    document.head.appendChild(link);
+  }
+}
+
+// Helper function to update document title and favicon based on language
+function updateBranding(lang: Language) {
+  const title = lang === 'tr' ? 'TanıYorum' : 'DiagnoseThat';
+  const favicon = lang === 'tr' ? '/favicon-tr.svg' : '/favicon-en.svg';
+  document.title = title;
+  updateFavicon(favicon);
+}
+
 export function I18nProvider({ children }: { children: React.ReactNode }) {
   const [language, setLanguageState] = useState<Language>('en');
 
   useEffect(() => {
     // Determine language based on domain
     const hostname = window.location.hostname;
+    let detectedLang: Language = 'en';
     
     if (hostname.includes('taniyorum.net') || hostname.includes('taniyorum')) {
-      setLanguageState('tr');
+      detectedLang = 'tr';
     } else if (hostname.includes('diagnosethat.net') || hostname.includes('diagnosethat')) {
-      setLanguageState('en');
+      detectedLang = 'en';
     } else {
       // Default: check browser language for local development
       const browserLang = navigator.language.toLowerCase();
       if (browserLang.startsWith('tr')) {
-        setLanguageState('tr');
+        detectedLang = 'tr';
       } else {
-        setLanguageState('en');
+        detectedLang = 'en';
       }
     }
+    
+    setLanguageState(detectedLang);
+    updateBranding(detectedLang);
   }, []);
 
   const setLanguage = (lang: Language) => {
     setLanguageState(lang);
     localStorage.setItem('language', lang);
+    updateBranding(lang);
   };
 
   const t = translations[language];
