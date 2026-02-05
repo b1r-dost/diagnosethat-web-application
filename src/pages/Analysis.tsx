@@ -298,19 +298,34 @@ export default function Analysis() {
     setStatusMessage(language === 'tr' ? 'Analiz başlatılıyor...' : 'Starting analysis...');
     
     try {
-      const { data, error } = await supabase.functions.invoke('analyze-radiograph', {
-        body: {
-          radiograph_id: radiographData.id,
-          action: 'submit'
-        }
+      // Get current session for auth token
+      const { data: sessionData } = await supabase.auth.getSession();
+      const accessToken = sessionData.session?.access_token;
+      
+      if (!accessToken) {
+        toast.error(language === 'tr' ? 'Oturum süresi doldu' : 'Session expired');
+        setIsAnalyzing(false);
+        return;
+      }
+      
+      const response = await fetch('/api/user-submit', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${accessToken}`,
+        },
+        body: JSON.stringify({ radiograph_id: radiographData.id }),
       });
 
-      if (error) {
-        console.error('Failed to start analysis:', error);
+      if (!response.ok) {
+        const errorData = await response.json();
+        console.error('Failed to start analysis:', errorData);
         toast.error(language === 'tr' ? 'Analiz başlatılamadı' : 'Failed to start analysis');
         setIsAnalyzing(false);
         return;
       }
+
+      const data = await response.json();
 
       // Validate job_id before polling
       if (!data?.job_id) {
@@ -353,19 +368,32 @@ export default function Analysis() {
       console.log(`Polling attempt ${attempts}/${maxAttempts}`);
 
       try {
-        const { data, error } = await supabase.functions.invoke('analyze-radiograph', {
-          body: {
-            radiograph_id: id,
-            action: 'poll',
-            job_id: jobId
-          }
+        // Get current session for auth token
+        const { data: sessionData } = await supabase.auth.getSession();
+        const accessToken = sessionData.session?.access_token;
+        
+        if (!accessToken) {
+          setStatusMessage(language === 'tr' ? 'Oturum süresi doldu' : 'Session expired');
+          setIsAnalyzing(false);
+          return;
+        }
+        
+        const response = await fetch('/api/user-poll', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${accessToken}`,
+          },
+          body: JSON.stringify({ job_id: jobId }),
         });
 
-        if (error) {
-          console.error('Poll error:', error);
+        if (!response.ok) {
+          console.error('Poll error:', response.status);
           setTimeout(poll, 5000);
           return;
         }
+
+        const data = await response.json();
 
         console.log('Poll result:', data.status);
 
