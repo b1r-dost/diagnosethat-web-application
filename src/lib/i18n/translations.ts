@@ -51,7 +51,7 @@ export const translations = {
       hero: {
         title: 'Dental Röntgen Analizi',
         subtitle: 'Diş hekimlerinden diş hekimleri ve hastaları için',
-        tryDemo: 'Demo Deneyin',
+        tryDemo: 'Deneyin',
       },
       demo: {
         title: 'Hızlı Analiz',
