@@ -3,7 +3,7 @@ export const translations = {
     // Brand
     brand: {
       name: 'TanıYorum',
-      tagline: 'Yapay Zeka Destekli Diş Röntgeni Analizi',
+      tagline: 'Dental teşhis süreçleri asistanınız',
     },
     // Navigation
     nav: {
@@ -50,7 +50,7 @@ export const translations = {
     home: {
       hero: {
         title: 'Dental Röntgen Analizi',
-        subtitle: 'Yapay zeka destekli diş röntgeni analiz sistemi',
+        subtitle: 'Diş hekimlerinden diş hekimleri ve hastaları için',
         tryDemo: 'Demo Deneyin',
       },
       demo: {
