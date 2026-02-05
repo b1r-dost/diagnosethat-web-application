@@ -78,7 +78,7 @@ interface Finding {
 export default function Analysis() {
   const { id } = useParams<{ id: string }>();
   const { t, language } = useI18n();
-  const { user, isDentist } = useAuth();
+  const { user, isDentist, isPatient } = useAuth();
   const navigate = useNavigate();
   const [radiograph, setRadiograph] = useState<Radiograph | null>(null);
   const [imageUrl, setImageUrl] = useState<string | null>(null);
@@ -510,7 +510,9 @@ export default function Analysis() {
 
   // imageStyle is now handled via canvas drawing
 
-  if (!isDentist) {
+  // Allow both dentists and patients to access analysis page
+  // Patients can view their own radiographs (RLS handles authorization)
+  if (!isDentist && !isPatient) {
     return (
       <MainLayout>
         <div className="container py-8 text-center">
