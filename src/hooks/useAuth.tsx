@@ -49,7 +49,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const { toast } = useToast();
   const { t } = useI18n();
 
-  const fetchProfile = useCallback(async (userId: string) => {
+  const fetchProfile = useCallback(async (userId: string, userMetadata?: Record<string, unknown>) => {
     try {
       const { data, error } = await supabase
         .from('profiles')
@@ -57,7 +57,27 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         .eq('user_id', userId)
         .single();
 
-      if (error && error.code !== 'PGRST116') {
+      if (error) {
+        if (error.code === 'PGRST116') {
+          // Profile not found - create one from user_metadata
+          console.log('Profile not found, creating from metadata...');
+          const { data: newProfile, error: insertError } = await supabase
+            .from('profiles')
+            .insert({
+              user_id: userId,
+              first_name: (userMetadata?.first_name as string) || null,
+              last_name: (userMetadata?.last_name as string) || null,
+            })
+            .select()
+            .single();
+
+          if (!insertError && newProfile) {
+            console.log('Profile created successfully');
+            return newProfile as Profile;
+          }
+          console.error('Error creating profile:', insertError);
+          return null;
+        }
         console.error('Error fetching profile:', error);
         return null;
       }
@@ -69,7 +89,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   }, []);
 
-  const fetchRoles = useCallback(async (userId: string) => {
+  const fetchRoles = useCallback(async (userId: string, userMetadata?: Record<string, unknown>) => {
     try {
       const { data, error } = await supabase
         .from('user_roles')
@@ -81,7 +101,28 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         return [];
       }
 
-      return (data?.map(r => r.role) || []) as AppRole[];
+      // If no roles found, try to create from user_metadata
+      if (!data || data.length === 0) {
+        const roleFromMetadata = userMetadata?.role as AppRole;
+        if (roleFromMetadata && ['admin', 'dentist', 'patient'].includes(roleFromMetadata)) {
+          console.log('Role not found, creating from metadata:', roleFromMetadata);
+          const { error: insertError } = await supabase
+            .from('user_roles')
+            .insert({
+              user_id: userId,
+              role: roleFromMetadata,
+            });
+
+          if (!insertError) {
+            console.log('Role created successfully');
+            return [roleFromMetadata];
+          }
+          console.error('Error creating role:', insertError);
+        }
+        return [];
+      }
+
+      return (data.map(r => r.role) || []) as AppRole[];
     } catch (err) {
       console.error('Error in fetchRoles:', err);
       return [];
@@ -90,8 +131,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const refreshProfile = useCallback(async () => {
     if (user) {
-      const profileData = await fetchProfile(user.id);
-      const rolesData = await fetchRoles(user.id);
+      const userMetadata = user.user_metadata;
+      const profileData = await fetchProfile(user.id, userMetadata);
+      const rolesData = await fetchRoles(user.id, userMetadata);
       setProfile(profileData);
       setRoles(rolesData);
     }
@@ -107,8 +149,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         // Defer profile/role fetching with setTimeout to avoid Supabase deadlock
         if (session?.user) {
           setTimeout(async () => {
-            const profileData = await fetchProfile(session.user.id);
-            const rolesData = await fetchRoles(session.user.id);
+            const userMetadata = session.user.user_metadata;
+            const profileData = await fetchProfile(session.user.id, userMetadata);
+            const rolesData = await fetchRoles(session.user.id, userMetadata);
             setProfile(profileData);
             setRoles(rolesData);
             setIsLoading(false);
@@ -136,9 +179,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setUser(session?.user ?? null);
       
       if (session?.user) {
+        const userMetadata = session.user.user_metadata;
         Promise.all([
-          fetchProfile(session.user.id),
-          fetchRoles(session.user.id)
+          fetchProfile(session.user.id, userMetadata),
+          fetchRoles(session.user.id, userMetadata)
         ]).then(([profileData, rolesData]) => {
           setProfile(profileData);
           setRoles(rolesData);
