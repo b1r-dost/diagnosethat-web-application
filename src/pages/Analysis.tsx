@@ -409,7 +409,7 @@ export default function Analysis() {
   }, [id, language, fetchRadiograph, parseResultToFindings]);
 
   useEffect(() => {
-    if (id && user && isDentist) {
+    if (id && user) {
       fetchRadiograph().then((data) => {
         if (data && data.analysis_status === 'pending') {
           startAnalysis(data);

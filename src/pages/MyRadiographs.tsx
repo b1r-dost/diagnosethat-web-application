@@ -79,7 +79,7 @@ export default function MyRadiographs() {
       }
 
       // Create radiograph record
-      const { error: insertError } = await supabase
+      const { data: radiograph, error: insertError } = await supabase
         .from('radiographs')
         .insert({
           owner_user_id: user.id,
@@ -87,14 +87,16 @@ export default function MyRadiographs() {
           original_filename: file.name,
           file_size: file.size,
           analysis_status: 'pending',
-        });
+        })
+        .select()
+        .single();
 
       if (insertError) {
         throw insertError;
       }
 
       toast.success(language === 'tr' ? 'Röntgen yüklendi!' : 'Radiograph uploaded!');
-      fetchRadiographs();
+      navigate(`/analysis/${radiograph.id}`);
     } catch (err) {
       console.error('Upload error:', err);
       toast.error(language === 'tr' ? 'Yükleme başarısız' : 'Upload failed');
