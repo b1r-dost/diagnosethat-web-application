@@ -1,15 +1,22 @@
 
-# Metin Güncellemeleri
+
+# İngilizce Metin Güncellemeleri
+
+## Özet
+
+Türkçe sayfa için yapılan güncellemelere paralel olarak İngilizce metinleri de güncelleyeceğiz.
 
 ## Değişiklikler
 
-`src/components/home/FeaturesSection.tsx` dosyasında iki metin güncellemesi:
+`src/lib/i18n/translations.ts` dosyasındaki İngilizce bölümü:
 
-| Mevcut | Yeni |
-|--------|------|
-| AI Destekli Analiz | Akıllı Analiz |
-| Panoramik, bitewing ve periapikal röntgenleri otomatik analiz | Panoramik, bitewing ve periapikal röntgenleri otomatik analiz eder |
+| Alan | Mevcut | Yeni |
+|------|--------|------|
+| `brand.tagline` | AI-Powered Dental X-Ray Analysis | Your dental diagnosis assistant |
+| `home.hero.subtitle` | AI-powered dental radiograph analysis system | From dentists, for dentists and patients |
+| `home.hero.tryDemo` | Try Demo | Try It |
 
 ## Teknik Detay
 
-Satır 10-12 arasındaki features dizisinin ilk elemanı güncellenecek.
+Satır 312, 359 ve 360'taki değerler güncellenecek.
+
