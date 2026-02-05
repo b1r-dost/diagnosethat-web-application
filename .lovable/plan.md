@@ -1,183 +1,94 @@
 
-# Hasta Rol ve Profil Sorunları Düzeltme Planı
+# Hasta Röntgen Yükleme ve Otomatik Analiz Başlatma Planı
 
-## Tespit Edilen Kök Nedenler
+## Mevcut Durum Analizi
 
-### 1. Veritabanında Eksik Veriler
-Sorguladığımda kullanıcı için:
-- `user_roles` tablosunda kayıt YOK (boş dizi döndü)
-- `profiles` tablosunda kayıt YOK (406 hatası - 0 satır)
+### Sorunlar:
+1. **MyRadiographs.tsx**: Hasta röntgen yükledikten sonra analiz otomatik başlatılmıyor - sadece `pending` durumunda veritabanına kaydediliyor
+2. **Analysis.tsx (satır 411-430)**: Analiz başlatma mantığı `isDentist` kontrolü ile kısıtlanmış:
+   ```typescript
+   if (id && user && isDentist) {  // ← Sadece diş hekimleri için
+     fetchRadiograph().then((data) => {
+       if (data && data.analysis_status === 'pending') {
+         startAnalysis(data);
+       }
+     });
+   }
+   ```
+3. **Dashboard'daki tıklama**: Zaten çalışıyor - `navigate(`/analysis/${radiograph.id}`)` doğru yönlendiriyor
 
-Kullanıcının JWT token'ında `user_metadata.role = "patient"` bilgisi var, ancak bu bilgi `user_roles` tablosuna yazılmamış.
-
-### 2. Signup Sırasında INSERT Başarısızlığı
-`useAuth.tsx` signUp fonksiyonunda profil ve rol INSERT edilirken RLS politikası devreye giriyor. Mevcut politikalar:
-
-**profiles tablosu INSERT politikası:**
-```sql
-WITH CHECK Expression: (auth.uid() = user_id)
-```
-
-**user_roles tablosu INSERT politikası:**
-```sql
--- Yalnızca admin rolü olan kullanıcılar INSERT yapabilir
-WITH CHECK Expression: has_role(auth.uid(), 'admin'::app_role)
-
--- VEYA kullanıcı kendi rolünü ekleyebilir (signup için)
-WITH CHECK Expression: (auth.uid() = user_id)
-```
-
-**Sorun:** Signup sonrası `supabase.auth.signUp` tamamlandığında, hemen ardından yapılan INSERT işlemleri token henüz güncellenmediği için başarısız olabilir. 
-
-### 3. Login Sonrası Eksik Rol Fallback
-`useAuth.tsx` içinde `roles = []` olduğunda `isPatient = false` oluyor, bu yüzden:
-- Sidebar'da "Radyograflarım" linki görünmüyor (`show: isPatient && !isDentist`)
-- Dashboard'da hasta bölümü görünmüyor (`isPatient && !isDentist`)
+### Diş Hekimi Akışı (Referans - UploadRadiograph.tsx):
+1. Röntgen yükle → veritabanına kaydet → analiz sayfasına yönlendir
+2. Analysis.tsx açıldığında `pending` durumunu görüp otomatik analiz başlat
 
 ---
 
 ## Çözüm Planı
 
-### Adım 1: Login Sırasında Eksik Profil/Rol Oluştur (Fallback)
+### Adım 1: MyRadiographs.tsx - Yükleme Sonrası Analiz Sayfasına Yönlendirme
 
-`useAuth.tsx` içinde login sonrası profil ve rol bulunamazsa, bunları otomatik oluşturacak fallback mantığı ekle:
+Mevcut `onDrop` fonksiyonunda yükleme sonrası analiz sayfasına yönlendirme ekle:
 
 ```typescript
-// fetchProfile içinde - eğer profil yoksa oluştur
-const fetchProfile = useCallback(async (userId: string, userMetadata?: any) => {
-  const { data, error } = await supabase
-    .from('profiles')
-    .select('*')
-    .eq('user_id', userId)
-    .single();
+// Mevcut (satır 81-103):
+const { error: insertError } = await supabase
+  .from('radiographs')
+  .insert({...});
 
-  if (error?.code === 'PGRST116') {
-    // Profil yok - oluştur
-    const { data: newProfile, error: insertError } = await supabase
-      .from('profiles')
-      .insert({
-        user_id: userId,
-        first_name: userMetadata?.first_name || null,
-        last_name: userMetadata?.last_name || null,
-      })
-      .select()
-      .single();
+if (insertError) throw insertError;
 
-    if (!insertError) {
-      return newProfile as Profile;
-    }
-  }
+toast.success(language === 'tr' ? 'Röntgen yüklendi!' : 'Radiograph uploaded!');
+fetchRadiographs();  // ← Sadece listeyi yeniliyor
 
-  return data as Profile | null;
-}, []);
+// Yeni:
+const { data: radiograph, error: insertError } = await supabase
+  .from('radiographs')
+  .insert({...})
+  .select()
+  .single();
+
+if (insertError) throw insertError;
+
+toast.success(language === 'tr' ? 'Röntgen yüklendi!' : 'Radiograph uploaded!');
+navigate(`/analysis/${radiograph.id}`);  // ← Analiz sayfasına yönlendir
 ```
 
-### Adım 2: user_metadata'dan Rol Fallback
+### Adım 2: Analysis.tsx - Hasta İçin Analiz Başlatma
 
-JWT token içindeki `user_metadata.role` bilgisini kullanarak eksik rolü oluştur:
-
-```typescript
-// fetchRoles içinde - eğer rol yoksa user_metadata'dan al ve oluştur
-const fetchRoles = useCallback(async (userId: string, userMetadata?: any) => {
-  const { data, error } = await supabase
-    .from('user_roles')
-    .select('role')
-    .eq('user_id', userId);
-
-  if (!error && (!data || data.length === 0)) {
-    // Rol yok - user_metadata'dan al ve oluştur
-    const roleFromMetadata = userMetadata?.role as AppRole;
-    if (roleFromMetadata) {
-      const { error: insertError } = await supabase
-        .from('user_roles')
-        .insert({
-          user_id: userId,
-          role: roleFromMetadata,
-        });
-
-      if (!insertError) {
-        return [roleFromMetadata];
-      }
-    }
-  }
-
-  return (data?.map(r => r.role) || []) as AppRole[];
-}, []);
-```
-
-### Adım 3: Dashboard'da Hasta Röntgenlerini Göster
-
-`Dashboard.tsx` içinde hasta için röntgen verilerini çek ve göster:
+`isDentist` kontrolünü kaldır veya hasta rolünü de dahil et:
 
 ```typescript
-// fetchDashboardData yerine hasta için de veri çek
+// Mevcut (satır 411-430):
 useEffect(() => {
-  if (user) {
-    fetchAnnouncements();
-    if (isDentist) {
-      fetchDashboardData();
-    } else if (isPatient) {
-      fetchPatientRadiographs(); // YENİ
-    } else {
-      setDataLoading(false);
-    }
+  if (id && user && isDentist) {  // ← Sadece diş hekimi
+    fetchRadiograph().then((data) => {...});
   }
-}, [user, isDentist, isPatient]);
+}, [id, user, isDentist]);
 
-// Hasta röntgenlerini çek
-const fetchPatientRadiographs = async () => {
-  const { data } = await supabase
-    .from('radiographs')
-    .select('*')
-    .eq('owner_user_id', user!.id)
-    .order('created_at', { ascending: false });
-
-  setRecentRadiographs(data || []);
-  setDataLoading(false);
-};
+// Yeni:
+useEffect(() => {
+  if (id && user) {  // ← Hem diş hekimi hem hasta
+    fetchRadiograph().then((data) => {
+      if (data && data.analysis_status === 'pending') {
+        startAnalysis(data);
+      } else if (data && data.analysis_status === 'processing') {
+        if (data.job_id) {
+          setIsAnalyzing(true);
+          setStatusMessage(language === 'tr' ? 'Analiz devam ediyor...' : 'Analysis in progress...');
+          pollForResult(data.job_id);
+        }
+      }
+    });
+  }
+}, [id, user]);
 ```
 
-### Adım 4: Dashboard Hasta Bölümünü Geliştir
+### Adım 3: Dashboard.tsx - Röntgen Tıklama (Zaten Çalışıyor)
 
-Dashboard'da hasta için röntgen listesi ve yükleme butonu ekle:
-
-```tsx
-{/* My Radiographs - Patient only */}
-{isPatient && !isDentist && (
-  <Card className="md:col-span-2">
-    <CardHeader className="flex flex-row items-center justify-between">
-      <div>
-        <CardTitle>{language === 'tr' ? 'Röntgenlerim' : 'My Radiographs'}</CardTitle>
-        <CardDescription>
-          {language === 'tr' ? 'Yüklediğiniz röntgenler' : 'Your uploaded radiographs'}
-        </CardDescription>
-      </div>
-      <Button asChild>
-        <Link to="/my-radiographs">
-          <Upload className="h-4 w-4 mr-2" />
-          {language === 'tr' ? 'Yeni Yükle' : 'Upload New'}
-        </Link>
-      </Button>
-    </CardHeader>
-    <CardContent>
-      {dataLoading ? (
-        <div className="space-y-3">
-          {[1, 2, 3].map(i => <Skeleton key={i} className="h-12 w-full" />)}
-        </div>
-      ) : recentRadiographs.length === 0 ? (
-        <p className="text-sm text-muted-foreground py-8 text-center">
-          {language === 'tr' ? 'Henüz röntgen yüklenmemiş.' : 'No radiographs uploaded yet.'}
-        </p>
-      ) : (
-        <div className="space-y-3">
-          {recentRadiographs.slice(0, 5).map(radiograph => (
-            // Röntgen kartları...
-          ))}
-        </div>
-      )}
-    </CardContent>
-  </Card>
-)}
+Mevcut kod zaten doğru şekilde çalışıyor:
+```typescript
+// Satır 408-409
+onClick={() => navigate(`/analysis/${radiograph.id}`)}
 ```
 
 ---
@@ -186,13 +97,22 @@ Dashboard'da hasta için röntgen listesi ve yükleme butonu ekle:
 
 | Dosya | Değişiklik | Açıklama |
 |-------|------------|----------|
-| `src/hooks/useAuth.tsx` | Güncelleme | Eksik profil/rol fallback mantığı |
-| `src/pages/Dashboard.tsx` | Güncelleme | Hasta röntgen listesi ve yükleme butonu |
+| `src/pages/MyRadiographs.tsx` | `onDrop` fonksiyonu | Yükleme sonrası analiz sayfasına yönlendirme |
+| `src/pages/Analysis.tsx` | `useEffect` (satır 411-430) | `isDentist` kısıtlamasını kaldırarak hasta için de analiz başlatma |
 
-## Beklenen Sonuçlar
+---
 
-1. Profil/rol eksik kullanıcılar login yaptığında otomatik olarak oluşturulacak
-2. `isPatient` doğru olarak true dönecek
-3. Sidebar'da "Radyograflarım" linki görünecek
-4. Dashboard'da hasta röntgenleri listelenecek ve yükleme butonu görünecek
-5. Yeni röntgen yükleme işlemi çalışacak
+## Beklenen Davranış
+
+### Hasta Akışı (Düzeltme Sonrası):
+1. **MyRadiographs sayfasından röntgen yükle** →
+2. **Otomatik olarak `/analysis/{id}` sayfasına yönlendir** →
+3. **Analysis sayfası `pending` durumunu görüp otomatik analizi başlat** →
+4. **Sonuç hazır olduğunda polygon maskeler ve rapor görüntülensin**
+
+### Dashboard'dan Tıklama:
+1. **Röntgen kartına tıkla** →
+2. **`/analysis/{id}` sayfasına yönlendir** →
+3. **Duruma göre analiz başlat veya sonucu göster**
+
+Bu düzeltme ile hasta deneyimi diş hekimi deneyimiyle aynı hale gelecek.
