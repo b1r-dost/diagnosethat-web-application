@@ -89,7 +89,7 @@ export function DemoAnalysis() {
     try {
       // Submit analysis to edge function with action=submit
       const submitResponse = await fetch(
-        `https://bllvnenslgntvkvgwgqh.supabase.co/functions/v1/demo-analysis?action=submit`,
+        '/api/demo-submit',
         {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -139,7 +139,7 @@ export function DemoAnalysis() {
 
       try {
         const pollResponse = await fetch(
-          `https://bllvnenslgntvkvgwgqh.supabase.co/functions/v1/demo-analysis?action=poll&job_id=${jobId}`
+          `/api/demo-poll?job_id=${jobId}`
         );
 
         if (!pollResponse.ok) {

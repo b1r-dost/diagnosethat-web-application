@@ -1,0 +1,11 @@
+ name = "diagnosethat"
+ pages_build_output_dir = "./dist"
+ compatibility_date = "2024-01-01"
+ 
+ [vars]
+ GATEWAY_API_URL = "https://api.diagnosethat.net"
+ SUPABASE_URL = "https://bllvnenslgntvkvgwgqh.supabase.co"
+ 
+ # Secrets (set via Cloudflare Dashboard or `wrangler pages secret put`):
+ # - GATEWAY_API_KEY
+ # - SUPABASE_SERVICE_ROLE_KEY
