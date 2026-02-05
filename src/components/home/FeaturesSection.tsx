@@ -7,9 +7,9 @@ export function FeaturesSection() {
   const features = [
     {
       icon: Scan,
-      title: language === 'tr' ? 'AI Destekli Analiz' : 'AI-Powered Analysis',
+      title: language === 'tr' ? 'Akıllı Analiz' : 'AI-Powered Analysis',
       description: language === 'tr' 
-        ? 'Panoramik, bitewing ve periapikal röntgenleri otomatik analiz'
+        ? 'Panoramik, bitewing ve periapikal röntgenleri otomatik analiz eder'
         : 'Automatic analysis of panoramic, bitewing and periapical radiographs',
       gradient: 'from-orange-500 to-amber-500',
     },
