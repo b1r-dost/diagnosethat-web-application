@@ -15,7 +15,8 @@ import {
   Image as ImageIcon,
   TrendingUp,
   Calendar,
-  ArrowRight
+  ArrowRight,
+  Upload
 } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { format } from 'date-fns';
@@ -80,13 +81,32 @@ export default function Dashboard() {
       fetchAnnouncements();
       if (isDentist) {
         fetchDashboardData();
+      } else if (isPatient) {
+        fetchPatientRadiographs();
       } else {
         setDataLoading(false);
       }
     } else {
       setDataLoading(false);
     }
-  }, [user, isDentist]);
+  }, [user, isDentist, isPatient]);
+
+  const fetchPatientRadiographs = async () => {
+    try {
+      const { data } = await supabase
+        .from('radiographs')
+        .select('*')
+        .eq('owner_user_id', user!.id)
+        .order('created_at', { ascending: false })
+        .limit(10);
+
+      setRecentRadiographs(data || []);
+    } catch (err) {
+      console.error('Error fetching patient radiographs:', err);
+    } finally {
+      setDataLoading(false);
+    }
+  };
 
   const fetchAnnouncements = async () => {
     try {
@@ -352,14 +372,74 @@ export default function Dashboard() {
           {/* My Radiographs - Patient only */}
           {isPatient && !isDentist && (
             <Card className="md:col-span-2">
-              <CardHeader>
-                <CardTitle>{t.patients.detail.radiographs}</CardTitle>
-                <CardDescription>{t.patients.detail.noRadiographs}</CardDescription>
+              <CardHeader className="flex flex-row items-center justify-between">
+                <div>
+                  <CardTitle className="flex items-center gap-2">
+                    <ImageIcon className="h-5 w-5" />
+                    {language === 'tr' ? 'Röntgenlerim' : 'My Radiographs'}
+                  </CardTitle>
+                  <CardDescription>
+                    {language === 'tr' ? 'Yüklediğiniz röntgenler' : 'Your uploaded radiographs'}
+                  </CardDescription>
+                </div>
+                <Button asChild>
+                  <Link to="/my-radiographs">
+                    <Upload className="h-4 w-4 mr-2" />
+                    {language === 'tr' ? 'Yeni Yükle' : 'Upload New'}
+                  </Link>
+                </Button>
               </CardHeader>
               <CardContent>
-                <p className="text-sm text-muted-foreground py-8 text-center">
-                  {t.patients.detail.noRadiographs}
-                </p>
+                {dataLoading ? (
+                  <div className="space-y-3">
+                    {[1, 2, 3].map(i => (
+                      <Skeleton key={i} className="h-12 w-full" />
+                    ))}
+                  </div>
+                ) : recentRadiographs.length === 0 ? (
+                  <p className="text-sm text-muted-foreground py-8 text-center">
+                    {language === 'tr' ? 'Henüz röntgen yüklenmemiş.' : 'No radiographs uploaded yet.'}
+                  </p>
+                ) : (
+                  <div className="space-y-3">
+                    {recentRadiographs.map(radiograph => (
+                      <div 
+                        key={radiograph.id}
+                        className="flex items-center justify-between p-3 rounded-lg bg-muted/50 hover:bg-muted cursor-pointer transition-colors"
+                        onClick={() => navigate(`/analysis/${radiograph.id}`)}
+                      >
+                        <div className="flex items-center gap-3">
+                          <div className="h-10 w-10 rounded-full bg-primary/10 flex items-center justify-center">
+                            <ImageIcon className="h-5 w-5 text-primary" />
+                          </div>
+                          <div>
+                            <p className="font-medium">
+                              {radiograph.original_filename || (language === 'tr' ? 'Röntgen' : 'Radiograph')}
+                            </p>
+                            <p className="text-sm text-muted-foreground">
+                              {radiograph.analysis_status === 'completed' 
+                                ? (language === 'tr' ? 'Analiz tamamlandı' : 'Analysis completed')
+                                : radiograph.analysis_status === 'pending'
+                                ? (language === 'tr' ? 'Analiz bekleniyor' : 'Pending analysis')
+                                : (language === 'tr' ? 'İşleniyor' : 'Processing')
+                              }
+                            </p>
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                          <span>{format(new Date(radiograph.created_at), 'dd.MM.yyyy')}</span>
+                          <ArrowRight className="h-4 w-4" />
+                        </div>
+                      </div>
+                    ))}
+                    <Button variant="ghost" className="w-full" asChild>
+                      <Link to="/my-radiographs">
+                        {language === 'tr' ? 'Tüm röntgenleri görüntüle' : 'View all radiographs'}
+                        <ArrowRight className="h-4 w-4 ml-2" />
+                      </Link>
+                    </Button>
+                  </div>
+                )}
               </CardContent>
             </Card>
           )}
