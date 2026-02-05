@@ -309,7 +309,7 @@ export const translations = {
     // Brand
     brand: {
       name: 'DiagnoseThat',
-      tagline: 'AI-Powered Dental X-Ray Analysis',
+      tagline: 'Your dental diagnosis assistant',
     },
     // Navigation
     nav: {
@@ -356,8 +356,8 @@ export const translations = {
     home: {
       hero: {
         title: 'Dental X-Ray Analysis',
-        subtitle: 'AI-powered dental radiograph analysis system',
-        tryDemo: 'Try Demo',
+        subtitle: 'From dentists, for dentists and patients',
+        tryDemo: 'Try It',
       },
       demo: {
         title: 'Quick Analysis',
