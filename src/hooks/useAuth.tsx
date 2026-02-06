@@ -148,6 +148,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
         // Handle password recovery event - preserve hash for token
         if (event === 'PASSWORD_RECOVERY') {
+          // Outlook SafeLinks / some clients may drop the URL hash; keep a flag so UI stays in reset mode
+          sessionStorage.setItem('pw_recovery', '1');
           window.location.assign('/auth?mode=reset' + window.location.hash);
           return;
         }

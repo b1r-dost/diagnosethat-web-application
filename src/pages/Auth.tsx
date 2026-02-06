@@ -51,20 +51,31 @@ export default function AuthPage() {
   const [confirmNewPassword, setConfirmNewPassword] = useState('');
   const [role, setRole] = useState<'dentist' | 'patient'>('dentist');
 
-  // Check URL hash for password recovery on mount
+  // Check URL hash / storage for password recovery on mount
   useEffect(() => {
     const hash = window.location.hash;
-    if (hash.includes('type=recovery')) {
+    const isRecovery =
+      hash.includes('type=recovery') ||
+      searchParams.get('type') === 'recovery' ||
+      sessionStorage.getItem('pw_recovery') === '1';
+
+    if (isRecovery) {
       setMode('reset');
     }
-  }, []);
+  }, [searchParams]);
 
   // Redirect if already logged in (but not during password reset)
   useEffect(() => {
-    if (user && !authLoading && mode !== 'reset') {
+    const isRecovery =
+      mode === 'reset' ||
+      window.location.hash.includes('type=recovery') ||
+      searchParams.get('type') === 'recovery' ||
+      sessionStorage.getItem('pw_recovery') === '1';
+
+    if (user && !authLoading && !isRecovery) {
       navigate('/dashboard');
     }
-  }, [user, authLoading, navigate, mode]);
+  }, [user, authLoading, navigate, mode, searchParams]);
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -450,7 +461,6 @@ export default function AuthPage() {
             )}
           </CardContent>
         </Card>
-      </div>
     </div>
   );
 }
