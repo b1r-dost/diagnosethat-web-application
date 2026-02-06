@@ -35,8 +35,8 @@ export default function AuthPage() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   
-  const [mode, setMode] = useState<'login' | 'signup' | 'forgot'>(
-    (searchParams.get('mode') as 'login' | 'signup' | 'forgot') || 'login'
+  const [mode, setMode] = useState<'login' | 'signup' | 'forgot' | 'reset'>(
+    (searchParams.get('mode') as 'login' | 'signup' | 'forgot' | 'reset') || 'login'
   );
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -48,14 +48,16 @@ export default function AuthPage() {
   const [confirmPassword, setConfirmPassword] = useState('');
   const [firstName, setFirstName] = useState('');
   const [lastName, setLastName] = useState('');
+  const [newPassword, setNewPassword] = useState('');
+  const [confirmNewPassword, setConfirmNewPassword] = useState('');
   const [role, setRole] = useState<'dentist' | 'patient'>('dentist');
 
-  // Redirect if already logged in
+  // Redirect if already logged in (but not during password reset)
   useEffect(() => {
-    if (user && !authLoading) {
+    if (user && !authLoading && mode !== 'reset') {
       navigate('/dashboard');
     }
-  }, [user, authLoading, navigate]);
+  }, [user, authLoading, navigate, mode]);
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -138,13 +140,53 @@ export default function AuthPage() {
 
     try {
       const { error } = await supabase.auth.resetPasswordForEmail(email, {
-        redirectTo: `${window.location.origin}/auth?mode=login`,
+        redirectTo: `${window.location.origin}/auth?mode=reset`,
       });
       
       if (error) {
         setError(error.message);
       } else {
         setSuccess(t.auth.resetEmailSent);
+      }
+    } catch (err) {
+      setError(t.common.error);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleResetPassword = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setError(null);
+    setIsLoading(true);
+
+    // Validate passwords
+    if (newPassword.length < 6) {
+      setError(t.auth.passwordMinLength);
+      setIsLoading(false);
+      return;
+    }
+
+    if (newPassword !== confirmNewPassword) {
+      setError(t.auth.passwordMismatch);
+      setIsLoading(false);
+      return;
+    }
+
+    try {
+      const { error } = await supabase.auth.updateUser({
+        password: newPassword,
+      });
+
+      if (error) {
+        setError(error.message);
+      } else {
+        // Sign out and redirect to login
+        await supabase.auth.signOut();
+        setSuccess(t.auth.passwordResetSuccess);
+        setNewPassword('');
+        setConfirmNewPassword('');
+        setMode('login');
       }
     } catch (err) {
       setError(t.common.error);
@@ -173,6 +215,7 @@ export default function AuthPage() {
               {mode === 'login' && t.auth.login}
               {mode === 'signup' && t.auth.signup}
               {mode === 'forgot' && t.auth.forgotPassword}
+              {mode === 'reset' && t.auth.setNewPassword}
             </CardDescription>
           </CardHeader>
           <CardContent>
@@ -346,6 +389,48 @@ export default function AuthPage() {
                 <Button type="submit" className="w-full" disabled={isLoading}>
                   {isLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                   {t.auth.resetPassword}
+                </Button>
+                <p className="text-center text-sm text-muted-foreground">
+                  <button
+                    type="button"
+                    onClick={() => setMode('login')}
+                    className="text-primary hover:underline"
+                  >
+                    {t.common.back}
+                  </button>
+                </p>
+              </form>
+            )}
+
+            {mode === 'reset' && (
+              <form onSubmit={handleResetPassword} className="space-y-4">
+                <div className="space-y-2">
+                  <Label htmlFor="new-password">{t.auth.newPassword}</Label>
+                  <Input
+                    id="new-password"
+                    type="password"
+                    value={newPassword}
+                    onChange={(e) => setNewPassword(e.target.value)}
+                    required
+                    autoComplete="new-password"
+                    minLength={6}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="confirm-new-password">{t.auth.confirmNewPassword}</Label>
+                  <Input
+                    id="confirm-new-password"
+                    type="password"
+                    value={confirmNewPassword}
+                    onChange={(e) => setConfirmNewPassword(e.target.value)}
+                    required
+                    autoComplete="new-password"
+                    minLength={6}
+                  />
+                </div>
+                <Button type="submit" className="w-full" disabled={isLoading}>
+                  {isLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                  {t.auth.setNewPassword}
                 </Button>
                 <p className="text-center text-sm text-muted-foreground">
                   <button

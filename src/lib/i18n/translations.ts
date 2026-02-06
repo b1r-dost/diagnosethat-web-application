@@ -45,6 +45,10 @@ export const translations = {
       emailInvalid: 'Geçerli bir e-posta adresi girin.',
       userAlreadyExists: 'Bu e-posta adresi zaten kayıtlı.',
       resetEmailSent: 'Şifre sıfırlama bağlantısı e-postanıza gönderildi.',
+      newPassword: 'Yeni Şifre',
+      confirmNewPassword: 'Yeni Şifre (Tekrar)',
+      setNewPassword: 'Yeni Şifre Belirle',
+      passwordResetSuccess: 'Şifreniz başarıyla güncellendi. Giriş yapabilirsiniz.',
     },
     // Home page
     home: {
@@ -351,6 +355,10 @@ export const translations = {
       emailInvalid: 'Please enter a valid email address.',
       userAlreadyExists: 'This email is already registered.',
       resetEmailSent: 'Password reset link has been sent to your email.',
+      newPassword: 'New Password',
+      confirmNewPassword: 'Confirm New Password',
+      setNewPassword: 'Set New Password',
+      passwordResetSuccess: 'Your password has been updated successfully. You can now login.',
     },
     // Home page
     home: {
