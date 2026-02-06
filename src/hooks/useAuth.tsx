@@ -146,6 +146,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         setSession(session);
         setUser(session?.user ?? null);
 
+        // Handle password recovery event
+        if (event === 'PASSWORD_RECOVERY') {
+          // Redirect to reset password mode
+          window.location.href = '/auth?mode=reset';
+          return;
+        }
+
         // Defer profile/role fetching with setTimeout to avoid Supabase deadlock
         if (session?.user) {
           setTimeout(async () => {
