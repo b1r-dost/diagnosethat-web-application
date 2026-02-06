@@ -52,6 +52,14 @@ export default function AuthPage() {
   const [confirmNewPassword, setConfirmNewPassword] = useState('');
   const [role, setRole] = useState<'dentist' | 'patient'>('dentist');
 
+  // Check URL hash for password recovery on mount
+  useEffect(() => {
+    const hash = window.location.hash;
+    if (hash.includes('type=recovery')) {
+      setMode('reset');
+    }
+  }, []);
+
   // Redirect if already logged in (but not during password reset)
   useEffect(() => {
     if (user && !authLoading && mode !== 'reset') {
