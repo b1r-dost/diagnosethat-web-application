@@ -1,22 +1,66 @@
 
 
-# İngilizce Metin Güncellemeleri
+# Şifre Sıfırlama E-postası Sorunu Çözümü
 
-## Özet
+## Sorun
 
-Türkçe sayfa için yapılan güncellemelere paralel olarak İngilizce metinleri de güncelleyeceğiz.
+`LoginDialog.tsx` bileşenindeki şifre sıfırlama fonksiyonu eksik - Supabase API'sini çağırmadan doğrudan başarı mesajı gösteriyor.
+
+## Çözüm
+
+`handleForgotPassword` fonksiyonunu gerçek Supabase şifre sıfırlama API'sini kullanacak şekilde güncelleyeceğiz.
 
 ## Değişiklikler
 
-`src/lib/i18n/translations.ts` dosyasındaki İngilizce bölümü:
+`src/components/auth/LoginDialog.tsx` dosyasında:
 
-| Alan | Mevcut | Yeni |
-|------|--------|------|
-| `brand.tagline` | AI-Powered Dental X-Ray Analysis | Your dental diagnosis assistant |
-| `home.hero.subtitle` | AI-powered dental radiograph analysis system | From dentists, for dentists and patients |
-| `home.hero.tryDemo` | Try Demo | Try It |
+| Mevcut | Düzeltilecek |
+|--------|--------------|
+| Sadece `setSuccess()` çağırıyor | `supabase.auth.resetPasswordForEmail()` API'sini çağıracak |
+| Hata kontrolü yok | Hata durumunu kontrol edecek |
 
 ## Teknik Detay
 
-Satır 312, 359 ve 360'taki değerler güncellenecek.
+Satır 148-154 arasındaki fonksiyon şu şekilde güncellenecek:
+
+```typescript
+const handleForgotPassword = async (e: React.FormEvent) => {
+  e.preventDefault();
+  setError(null);
+  setIsLoading(true);
+  
+  try {
+    const { error } = await supabase.auth.resetPasswordForEmail(email, {
+      redirectTo: `${window.location.origin}/auth`,
+    });
+    
+    if (error) {
+      setError(error.message);
+    } else {
+      setSuccess(t.auth.resetEmailSent);
+    }
+  } catch (err) {
+    setError(t.common.error);
+  } finally {
+    setIsLoading(false);
+  }
+};
+```
+
+## Gerekli İmport
+
+`supabase` client'ını dosyaya import etmek gerekiyor:
+```typescript
+import { supabase } from '@/integrations/supabase/client';
+```
+
+## Ek Kontrol: Supabase URL Ayarları
+
+E-posta gönderilse bile kullanıcıya ulaşmaması durumunda:
+
+1. Supabase Dashboard > Authentication > URL Configuration bölümünden:
+   - **Site URL**: `https://diagnosethat.net` olarak ayarlanmalı
+   - **Redirect URLs**: Preview ve production URL'leri eklenmeli
+
+2. E-posta spam klasörü kontrol edilmeli
 
