@@ -14,6 +14,7 @@ import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { useI18n } from '@/lib/i18n';
 import { useAuth } from '@/hooks/useAuth';
+import { supabase } from '@/integrations/supabase/client';
 import { Loader2, AlertCircle, Stethoscope, User } from 'lucide-react';
 import { z } from 'zod';
 
@@ -149,8 +150,22 @@ export function LoginDialog({ open, onOpenChange, defaultMode = 'login' }: Login
     e.preventDefault();
     setError(null);
     setIsLoading(true);
-    setSuccess(t.auth.resetEmailSent);
-    setIsLoading(false);
+
+    try {
+      const { error } = await supabase.auth.resetPasswordForEmail(email, {
+        redirectTo: `${window.location.origin}/auth`,
+      });
+
+      if (error) {
+        setError(error.message);
+      } else {
+        setSuccess(t.auth.resetEmailSent);
+      }
+    } catch (err) {
+      setError(t.common.error);
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   return (
