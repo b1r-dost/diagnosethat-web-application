@@ -146,10 +146,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         setSession(session);
         setUser(session?.user ?? null);
 
-        // Handle password recovery event
+        // Handle password recovery event - preserve hash for token
         if (event === 'PASSWORD_RECOVERY') {
-          // Redirect to reset password mode
-          window.location.href = '/auth?mode=reset';
+          window.location.assign('/auth?mode=reset' + window.location.hash);
           return;
         }
 
