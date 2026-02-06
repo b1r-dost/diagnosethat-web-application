@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { useNavigate, useSearchParams, Link } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -9,7 +9,6 @@ import { Alert, AlertDescription } from '@/components/ui/alert';
 import { useI18n } from '@/lib/i18n';
 import { useAuth } from '@/hooks/useAuth';
 import { supabase } from '@/integrations/supabase/client';
-import { MainLayout } from '@/components/layout/MainLayout';
 import { Loader2, AlertCircle, Stethoscope, User } from 'lucide-react';
 import { z } from 'zod';
 
@@ -189,8 +188,9 @@ export default function AuthPage() {
       if (error) {
         setError(error.message);
       } else {
-        // Sign out and redirect to login
+        // Sign out, clear URL hash, and redirect to login
         await supabase.auth.signOut();
+        window.history.replaceState(null, '', '/auth?mode=login');
         setSuccess(t.auth.passwordResetSuccess);
         setNewPassword('');
         setConfirmNewPassword('');
@@ -205,18 +205,15 @@ export default function AuthPage() {
 
   if (authLoading) {
     return (
-      <MainLayout>
-        <div className="flex items-center justify-center min-h-[60vh]">
-          <Loader2 className="h-8 w-8 animate-spin" />
-        </div>
-      </MainLayout>
+      <div className="flex min-h-screen items-center justify-center bg-background">
+        <Loader2 className="h-8 w-8 animate-spin text-primary" />
+      </div>
     );
   }
 
   return (
-    <MainLayout showFooter={false}>
-      <div className="flex min-h-[calc(100vh-4rem)] items-center justify-center p-4">
-        <Card className="w-full max-w-md">
+    <div className="flex min-h-screen items-center justify-center bg-gradient-to-br from-background to-muted p-4">
+      <Card className="w-full max-w-md">
           <CardHeader className="text-center">
             <CardTitle className="text-2xl">{brandName}</CardTitle>
             <CardDescription>
@@ -454,6 +451,6 @@ export default function AuthPage() {
           </CardContent>
         </Card>
       </div>
-    </MainLayout>
+    </div>
   );
 }

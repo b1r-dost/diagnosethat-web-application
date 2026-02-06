@@ -16,9 +16,16 @@ export default function Home() {
   const { user, isLoading } = useAuth();
   const navigate = useNavigate();
 
-  // Redirect logged-in users to dashboard
+  // Redirect logged-in users to dashboard (unless in password recovery flow)
   useEffect(() => {
     if (user && !isLoading) {
+      // Check if this is a password recovery redirect
+      const hash = window.location.hash;
+      if (hash.includes('type=recovery')) {
+        // Redirect to auth page with reset mode, preserving the hash
+        window.location.assign('/auth?mode=reset' + hash);
+        return;
+      }
       navigate('/dashboard');
     }
   }, [user, isLoading, navigate]);
