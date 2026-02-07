@@ -102,9 +102,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       }
 
       // If no roles found, try to create from user_metadata
+      // SECURITY: Only allow dentist/patient roles - admin cannot be self-assigned
       if (!data || data.length === 0) {
         const roleFromMetadata = userMetadata?.role as AppRole;
-        if (roleFromMetadata && ['admin', 'dentist', 'patient'].includes(roleFromMetadata)) {
+        if (roleFromMetadata && ['dentist', 'patient'].includes(roleFromMetadata)) {
           console.log('Role not found, creating from metadata:', roleFromMetadata);
           const { error: insertError } = await supabase
             .from('user_roles')
