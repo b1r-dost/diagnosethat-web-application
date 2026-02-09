@@ -36,6 +36,32 @@ const getToothColor = (id: number): string => {
   return colors[id % colors.length];
 };
 
+// Get disease-specific colors based on type
+const getDiseaseColor = (diseaseType: string): { fill: string; stroke: string } => {
+  const type = diseaseType.toLowerCase().replace(/\s+/g, '_');
+  
+  if (type === 'caries') {
+    return {
+      fill: 'rgba(249, 115, 22, 0.55)',    // orange-500
+      stroke: 'rgba(234, 88, 12, 1)',       // orange-600
+    };
+  }
+  
+  // periapical_lesion, apical_lesion ve benzeri
+  if (type.includes('apical') || type.includes('lesion')) {
+    return {
+      fill: 'rgba(239, 68, 68, 0.55)',     // red-500
+      stroke: 'rgba(220, 38, 38, 1)',       // red-600
+    };
+  }
+  
+  // Varsayılan (diğer hastalıklar) - kırmızı
+  return {
+    fill: 'rgba(239, 68, 68, 0.55)',
+    stroke: 'rgba(220, 38, 38, 1)',
+  };
+};
+
 export function DemoAnalysis() {
   const { t, language, clinicRef } = useI18n();
   const [image, setImage] = useState<string | null>(null);
@@ -213,7 +239,7 @@ export function DemoAnalysis() {
         }
       });
 
-      // Draw disease polygons with red
+      // Draw disease polygons with type-specific colors
       (result.diseases || []).forEach((disease) => {
         ctx.beginPath();
         const points = disease.polygon;
@@ -221,9 +247,11 @@ export function DemoAnalysis() {
           ctx.moveTo(points[0][0], points[0][1]);
           points.forEach(point => ctx.lineTo(point[0], point[1]));
           ctx.closePath();
-          ctx.fillStyle = 'rgba(239, 68, 68, 0.55)';
+          
+          const colors = getDiseaseColor(disease.disease_type);
+          ctx.fillStyle = colors.fill;
           ctx.fill();
-          ctx.strokeStyle = 'rgba(220, 38, 38, 1)';
+          ctx.strokeStyle = colors.stroke;
           ctx.lineWidth = 2;
           ctx.stroke();
         }
@@ -289,18 +317,46 @@ export function DemoAnalysis() {
 
             {result && (
               <div className="space-y-4">
-                <div className="flex items-center justify-center gap-6">
-                  <div className="flex items-center gap-2 text-sm">
-                    <div className="w-4 h-4 rounded bg-primary/30 border border-primary" />
-                    <span className="text-foreground font-medium">{result.teeth.length}</span>
-                    <span className="text-muted-foreground">{t.home.demo.teethDetected}</span>
-                  </div>
-                  <div className="flex items-center gap-2 text-sm">
-                    <div className="w-4 h-4 rounded bg-destructive/30 border border-destructive" />
-                    <span className="text-foreground font-medium">{(result.diseases || []).length}</span>
-                    <span className="text-muted-foreground">{t.home.demo.diseasesDetected}</span>
-                  </div>
-                </div>
+                {(() => {
+                  const cariesCount = (result.diseases || []).filter(d => 
+                    d.disease_type.toLowerCase() === 'caries'
+                  ).length;
+                  
+                  const lesionCount = (result.diseases || []).filter(d => {
+                    const type = d.disease_type.toLowerCase();
+                    return type.includes('apical') || type.includes('lesion');
+                  }).length;
+                  
+                  return (
+                    <div className="flex items-center justify-center gap-6 flex-wrap">
+                      <div className="flex items-center gap-2 text-sm">
+                        <div className="w-4 h-4 rounded bg-primary/30 border border-primary" />
+                        <span className="text-foreground font-medium">{result.teeth.length}</span>
+                        <span className="text-muted-foreground">{t.home.demo.teethDetected}</span>
+                      </div>
+                      
+                      {cariesCount > 0 && (
+                        <div className="flex items-center gap-2 text-sm">
+                          <div className="w-4 h-4 rounded bg-orange-500/30 border border-orange-500" />
+                          <span className="text-foreground font-medium">{cariesCount}</span>
+                          <span className="text-muted-foreground">
+                            {language === 'tr' ? 'çürük' : 'caries'}
+                          </span>
+                        </div>
+                      )}
+                      
+                      {lesionCount > 0 && (
+                        <div className="flex items-center gap-2 text-sm">
+                          <div className="w-4 h-4 rounded bg-destructive/30 border border-destructive" />
+                          <span className="text-foreground font-medium">{lesionCount}</span>
+                          <span className="text-muted-foreground">
+                            {language === 'tr' ? 'kök iltihaplanması' : 'root inflammation'}
+                          </span>
+                        </div>
+                      )}
+                    </div>
+                  );
+                })()}
 
                 <div className="flex items-start gap-2 p-3 rounded-lg bg-muted/50 border border-border">
                   <AlertCircle className="h-4 w-4 text-muted-foreground shrink-0 mt-0.5" />
