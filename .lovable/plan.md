@@ -1,68 +1,74 @@
 
+# Demo Analiz: Hastalık Renkleri Sorunu
 
-# Demo Analiz Hatası: Render Bölümündeki disease_type Kontrolü
+## Tespit Edilen Sorun
 
-## Sorunun Kök Nedeni
+API'den gelen hastalık verilerinde alan adı `type` olarak geliyor, ancak frontend kodu `disease_type` arıyor. Bu yuzden:
+- Canvas ciziminde `getDiseaseColor(disease.disease_type)` her zaman `undefined` aliyor ve varsayilan kirmizi renk donuyor
+- Hastalık sayaci (caries/lesion) her zaman 0 gosteriyor cunku `d.disease_type?.toLowerCase()` undefined donuyor
 
-`getDiseaseColor` fonksiyonu duzeltildi ancak ayni sorun **JSX render bolumunde** de var. Satir 380-387'deki hastalık sayim kodunda `disease_type` undefined kontrolu yapilmiyor:
+### Kanitlar
 
-```typescript
-// Satir 380-381 - CRASH NOKTASI
-const cariesCount = (result.diseases || []).filter(d => 
-  d.disease_type.toLowerCase() === 'caries'  // disease_type undefined ise CRASH!
-).length;
-
-// Satir 384-386 - CRASH NOKTASI
-const lesionCount = (result.diseases || []).filter(d => {
-  const type = d.disease_type.toLowerCase();  // disease_type undefined ise CRASH!
-  return type.includes('apical') || type.includes('lesion');
-}).length;
+**GPU Inference kodu** (`disease_detector.py` satir 82-83 ve `iou_mapper.py` satir 88):
+```python
+diseases.append({
+    'type': disease_type,      # <-- 'type' kullaniliyor
+    'confidence': ...,
+    'polygon': ...,
+})
 ```
 
-Bu kod React rendering sirasinda calistigindan, hata ErrorBoundary tarafindan yakalanir ve "Bir hata olustu" mesaji gosterilir.
-
----
+**Frontend kodu** (`DemoAnalysis.tsx`):
+```typescript
+// disease_type ariyor ama API'de 'type' var
+const colors = getDiseaseColor(disease.disease_type);  // undefined!
+```
 
 ## Cozum
 
-### Satir 380-387: Guvenli disease_type Kontrolu Ekle
+`DemoAnalysis.tsx` dosyasinda hastalık verilerine erisirken hem `disease_type` hem de `type` alanlarini destekle. Bu sekilde mevcut ve gelecekteki API versiyonlariyla uyumlu olur.
 
+### Degisiklikler
+
+**1. AnalysisResult arayuzunu guncelle** - `type` alanini ekle:
 ```typescript
-const cariesCount = (result.diseases || []).filter(d => 
-  d.disease_type?.toLowerCase() === 'caries'
-).length;
-
-const lesionCount = (result.diseases || []).filter(d => {
-  const type = d.disease_type?.toLowerCase() || '';
-  return type.includes('apical') || type.includes('lesion');
-}).length;
+diseases: Array<{
+  disease_id?: number;
+  polygon: number[][];
+  disease_type?: string;
+  type?: string;         // API 'type' olarak gonderiyor
+  tooth_id?: number;
+}>;
 ```
 
-Tek degisiklik: `d.disease_type.toLowerCase()` yerine `d.disease_type?.toLowerCase()` kullanmak (optional chaining).
+**2. Canvas ciziminde her iki alani kontrol et:**
+```typescript
+const diseaseType = disease.disease_type || disease.type;
+const colors = getDiseaseColor(diseaseType);
+```
 
----
+**3. Hastalık sayacilarinda her iki alani kontrol et:**
+```typescript
+const cariesCount = (result.diseases || []).filter(d => {
+  const dt = (d.disease_type || d.type)?.toLowerCase();
+  return dt === 'caries';
+}).length;
+
+const lesionCount = (result.diseases || []).filter(d => {
+  const dt = (d.disease_type || d.type)?.toLowerCase() || '';
+  return dt.includes('apical') || dt.includes('lesion');
+}).length;
+```
 
 ## Degisecek Dosya
 
 | Dosya | Degisiklik |
 |-------|-----------|
-| `src/components/home/DemoAnalysis.tsx` | Satir 381 ve 385'e optional chaining ekle |
+| `src/components/home/DemoAnalysis.tsx` | `type` alanini destekle (3 nokta) |
 
----
+## Beklenen Sonuc
 
-## Teknik Ozet
-
-```text
-Onceki duzeltmeler:
-  getDiseaseColor(undefined)     -> OK (duzeltildi)
-  disease?.polygon               -> OK (duzeltildi)
-  Canvas cizim kodu              -> OK (duzeltildi)
-
-Kacirilan nokta (crash nedeni):
-  d.disease_type.toLowerCase()   -> CRASH! (render bolumunde)
-  
-Duzeltme:
-  d.disease_type?.toLowerCase()  -> OK (optional chaining)
-```
-
-Bu cok kucuk ama kritik bir degisiklik - sadece 2 satirdaki `.` ifadesini `?.` ile degistirmek yeterli.
+- Caries (curuk) hastaliklari **turuncu** renkte gosterilecek
+- Apical/periapical lezyonlar **kirmizi** renkte gosterilecek
+- Hastalık sayacilari dogru sayilari gosterecek
+- Lejant (legend) bolumunde curuk ve lezyon sayilari gorunecek
