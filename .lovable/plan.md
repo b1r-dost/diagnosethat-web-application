@@ -1,205 +1,146 @@
 
-# Beyaz Sayfa Sorunu Çözümü: Error Boundary ve Hata Yönetimi
+# Demo Analiz Beyaz Sayfa Hatası Çözümü
 
-Analiz gönderildikten sonra uygulamanın beyaz sayfaya düşmesi, yakalanmayan bir JavaScript hatasından kaynaklanıyor. React'ta rendering dışında oluşan asenkron hatalar Error Boundary tarafından yakalanmaz.
+Röntgen yüklendikten sonra birkaç saniye içinde "Bir hata oluştu" mesajı gösteriliyor. ErrorBoundary hatayı yakalıyor ama asıl sorun çözülmeli.
 
 ---
 
-## Sorunun Analizi
+## Tespit Edilen Sorunlar
 
-### Tespit Edilen Problemler
+### 1. Gereksiz Supabase Import (Satır 8)
+```typescript
+import { supabase } from '@/integrations/supabase/client';
+```
+Bu import hiçbir yerde kullanılmıyor ve potansiyel olarak modül yükleme hatalarına neden olabilir.
 
-1. **Global Error Boundary Eksik** - Yakalanmayan hatalar tüm React ağacını çökertiyor
-2. **Polling Hata Yönetimi Yetersiz** - `pollForResult` içindeki `try/catch` hataları yalnızca konsola yazdırıyor, kullanıcıya bildirim yapılmıyor
-3. **Unhandled Promise Rejection** - Asenkron hatalar React Error Boundary'nin kapsamı dışında
+### 2. API Yanıt Yapısı Güvenliği Eksik
+Canvas çizim kodunda `result.teeth` ve `result.diseases` dizileri doğrudan kullanılıyor. Eğer API beklenmeyen bir yapı döndürürse hata oluşabilir:
+
+```typescript
+// Mevcut (güvensiz)
+result.teeth.forEach((tooth) => { ... });
+
+// Eğer result.teeth undefined ise çöker
+```
+
+### 3. Polygon Veri Yapısı Kontrolü Eksik
+Canvas çiziminde polygon noktaları güvenli bir şekilde kontrol edilmiyor:
+
+```typescript
+// Mevcut
+ctx.moveTo(points[0][0], points[0][1]);
+
+// Eğer points[0] undefined ise veya [0], [1] yoksa çöker
+```
+
+### 4. Ref Uyarıları (Kritik Değil)
+`Roadmap` ve `Footer` bileşenlerine ref verilmeye çalışılıyor. Bu sadece uyarı ama temizlenmeli.
 
 ---
 
 ## Çözüm Planı
 
-### 1. Global Error Boundary Ekle
+### 1. DemoAnalysis.tsx Düzeltmeleri
 
-`src/components/ErrorBoundary.tsx` oluştur:
-
+**Gereksiz import kaldırılacak:**
 ```typescript
-import { Component, ErrorInfo, ReactNode } from 'react';
-
-interface Props {
-  children: ReactNode;
-}
-
-interface State {
-  hasError: boolean;
-  error: Error | null;
-}
-
-class ErrorBoundary extends Component<Props, State> {
-  constructor(props: Props) {
-    super(props);
-    this.state = { hasError: false, error: null };
-  }
-
-  static getDerivedStateFromError(error: Error): State {
-    return { hasError: true, error };
-  }
-
-  componentDidCatch(error: Error, errorInfo: ErrorInfo) {
-    console.error('ErrorBoundary caught:', error, errorInfo);
-  }
-
-  render() {
-    if (this.state.hasError) {
-      return (
-        <div className="min-h-screen flex items-center justify-center bg-background">
-          <div className="text-center p-8">
-            <h2 className="text-xl font-bold mb-4">Bir hata oluştu</h2>
-            <p className="text-muted-foreground mb-4">
-              Sayfa yüklenirken bir sorun oluştu.
-            </p>
-            <button 
-              onClick={() => window.location.reload()}
-              className="px-4 py-2 bg-primary text-primary-foreground rounded"
-            >
-              Sayfayı Yenile
-            </button>
-          </div>
-        </div>
-      );
-    }
-
-    return this.props.children;
-  }
-}
-
-export default ErrorBoundary;
+// Silinecek
+import { supabase } from '@/integrations/supabase/client';
 ```
 
-### 2. App.tsx'e Global Unhandled Rejection Handler Ekle
-
+**API yanıt işleme güçlendirilecek:**
 ```typescript
-useEffect(() => {
-  const handleRejection = (event: PromiseRejectionEvent) => {
-    console.error("Unhandled rejection:", event.reason);
-    toast.error("Beklenmeyen bir hata oluştu");
-    event.preventDefault();
-  };
-
-  window.addEventListener("unhandledrejection", handleRejection);
-  return () => window.removeEventListener("unhandledrejection", handleRejection);
-}, []);
-```
-
-### 3. DemoAnalysis.tsx Polling Hata Yönetimini Güçlendir
-
-**Mevcut kod (yetersiz):**
-```typescript
-} catch (err) {
-  console.error('Polling error:', err);
-  // Don't stop polling on transient errors
-}
-```
-
-**Yeni kod (geliştirilmiş):**
-```typescript
-} catch (err) {
-  console.error('Polling error:', err);
-  pollingErrorCount++;
+if (status === 'completed' && result) {
+  clearInterval(pollingRef.current!);
   
-  // 3 ardışık hatadan sonra durdur
-  if (pollingErrorCount >= 3) {
-    clearInterval(pollingRef.current!);
-    setError(language === 'tr' 
-      ? 'Bağlantı hatası. Lütfen tekrar deneyin.' 
-      : 'Connection error. Please try again.');
-    setIsAnalyzing(false);
-  }
+  // Veri yapısını doğrula
+  const safeResult: AnalysisResult = {
+    radiograph_type: result.radiograph_type,
+    inference_version: result.inference_version,
+    teeth: Array.isArray(result.teeth) ? result.teeth : [],
+    diseases: Array.isArray(result.diseases) ? result.diseases : [],
+  };
+  
+  setResult(safeResult);
+  setIsAnalyzing(false);
+  setStatusMessage('');
+}
+```
+
+**Canvas çizimi güvenli hale getirilecek:**
+```typescript
+// Draw teeth polygons
+(result.teeth || []).forEach((tooth) => {
+  const points = tooth?.polygon;
+  if (!Array.isArray(points) || points.length === 0) return;
+  
+  const firstPoint = points[0];
+  if (!Array.isArray(firstPoint) || firstPoint.length < 2) return;
+  
+  ctx.beginPath();
+  ctx.moveTo(firstPoint[0], firstPoint[1]);
+  points.forEach(point => {
+    if (Array.isArray(point) && point.length >= 2) {
+      ctx.lineTo(point[0], point[1]);
+    }
+  });
+  ctx.closePath();
+  // ... rest of drawing
+});
+```
+
+### 2. Hata Ayıklama için Detaylı Loglama
+
+```typescript
+if (status === 'completed' && result) {
+  console.log('Analysis completed, result structure:', {
+    hasTeeth: Array.isArray(result.teeth),
+    teethCount: result.teeth?.length,
+    hasDiseases: Array.isArray(result.diseases),
+    diseasesCount: result.diseases?.length,
+  });
+  // ...
 }
 ```
 
 ---
 
-## Değişecek Dosyalar
+## Değişecek Dosya
 
 | Dosya | Değişiklik |
 |-------|-----------|
-| `src/components/ErrorBoundary.tsx` | **Yeni** - Global hata yakalama bileşeni |
-| `src/App.tsx` | ErrorBoundary wrapper, unhandledrejection listener |
-| `src/components/home/DemoAnalysis.tsx` | Polling hata sayacı, daha sağlam hata yönetimi |
+| `src/components/home/DemoAnalysis.tsx` | Gereksiz import kaldır, güvenli veri işleme, defensive coding |
 
 ---
 
-## Teknik Detaylar
-
-### Error Boundary Kapsamı
+## Teknik Özet
 
 ```text
-┌─────────────────────────────────────────┐
-│ ErrorBoundary                           │
-│  ┌───────────────────────────────────┐  │
-│  │ QueryClientProvider               │  │
-│  │  ┌─────────────────────────────┐  │  │
-│  │  │ I18nProvider                │  │  │
-│  │  │  ┌───────────────────────┐  │  │  │
-│  │  │  │ AuthProvider          │  │  │  │
-│  │  │  │  ┌─────────────────┐  │  │  │  │
-│  │  │  │  │ Routes          │  │  │  │  │
-│  │  │  │  └─────────────────┘  │  │  │  │
-│  │  │  └───────────────────────┘  │  │  │
-│  │  └─────────────────────────────┘  │  │
-│  └───────────────────────────────────┘  │
-└─────────────────────────────────────────┘
+Mevcut Akış:
+API Response → setResult(result) → Canvas çizimi → HATA
+
+Yeni Akış:
+API Response → Veri Doğrulama → Güvenli Yapı → setResult → Güvenli Canvas → OK
+                    │
+                    └─ Geçersiz veri → Hata mesajı göster
 ```
 
-### Polling Hata Yönetimi Akışı
+### Savunmacı Kod Deseni
 
-```text
-pollForResult başlar
-    │
-    ▼
-API çağrısı
-    │
-    ├─ Başarılı ──▶ Sonucu işle
-    │
-    └─ Hata ──▶ pollingErrorCount++
-                    │
-                    ├─ < 3 ──▶ Polling devam
-                    │
-                    └─ >= 3 ──▶ Polling durdur
-                                │
-                                ▼
-                          Kullanıcıya hata göster
-```
+```typescript
+// Her dizi erişiminde kontrol
+const safeForEach = <T,>(arr: T[] | undefined, fn: (item: T) => void) => {
+  if (Array.isArray(arr)) {
+    arr.forEach(fn);
+  }
+};
 
----
-
-## App.tsx Son Hali (Özet)
-
-```tsx
-import ErrorBoundary from './components/ErrorBoundary';
-import { toast } from 'sonner';
-import { useEffect } from 'react';
-
-function AppContent() {
-  useEffect(() => {
-    const handleRejection = (event: PromiseRejectionEvent) => {
-      console.error("Unhandled rejection:", event.reason);
-      toast.error("Beklenmeyen bir hata oluştu");
-      event.preventDefault();
-    };
-    window.addEventListener("unhandledrejection", handleRejection);
-    return () => window.removeEventListener("unhandledrejection", handleRejection);
-  }, []);
-
-  return (
-    <QueryClientProvider client={queryClient}>
-      {/* ... providers and routes ... */}
-    </QueryClientProvider>
-  );
-}
-
-const App = () => (
-  <ErrorBoundary>
-    <AppContent />
-  </ErrorBoundary>
-);
+// Her nokta erişiminde kontrol
+const safePoint = (point: number[] | undefined): [number, number] | null => {
+  if (Array.isArray(point) && point.length >= 2 && 
+      typeof point[0] === 'number' && typeof point[1] === 'number') {
+    return [point[0], point[1]];
+  }
+  return null;
+};
 ```
