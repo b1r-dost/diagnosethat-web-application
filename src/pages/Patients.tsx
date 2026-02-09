@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { MainLayout } from '@/components/layout/MainLayout';
 import { useI18n } from '@/lib/i18n';
@@ -10,6 +10,15 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Plus, Search, User, Calendar, Phone } from 'lucide-react';
 import { Skeleton } from '@/components/ui/skeleton';
 import { format } from 'date-fns';
+import {
+  Pagination,
+  PaginationContent,
+  PaginationItem,
+  PaginationLink,
+  PaginationNext,
+  PaginationPrevious,
+  PaginationEllipsis,
+} from '@/components/ui/pagination';
 
 interface Patient {
   id: string;
@@ -21,6 +30,8 @@ interface Patient {
   created_at: string;
 }
 
+const PAGE_SIZE = 10;
+
 export default function Patients() {
   const { t, language } = useI18n();
   const { user, isLoading: authLoading, isDentist } = useAuth();
@@ -28,6 +39,11 @@ export default function Patients() {
   const [patients, setPatients] = useState<Patient[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
+  const [debouncedSearch, setDebouncedSearch] = useState('');
+  const [currentPage, setCurrentPage] = useState(1);
+  const [totalCount, setTotalCount] = useState(0);
+
+  const totalPages = Math.ceil(totalCount / PAGE_SIZE);
 
   useEffect(() => {
     if (!authLoading && !user) {
@@ -35,18 +51,41 @@ export default function Patients() {
     }
   }, [user, authLoading, navigate]);
 
+  // Debounce search query
   useEffect(() => {
-    if (user && isDentist) {
-      fetchPatients();
-    }
-  }, [user, isDentist]);
+    const timer = setTimeout(() => {
+      setDebouncedSearch(searchQuery);
+      setCurrentPage(1); // Reset to first page on new search
+    }, 300);
+    return () => clearTimeout(timer);
+  }, [searchQuery]);
 
-  const fetchPatients = async () => {
+  const fetchPatients = useCallback(async () => {
+    if (!user || !isDentist) return;
+    
+    setIsLoading(true);
     try {
-      const { data, error } = await supabase
+      const from = (currentPage - 1) * PAGE_SIZE;
+      const to = from + PAGE_SIZE - 1;
+
+      let query = supabase
         .from('patients')
-        .select('*')
-        .order('created_at', { ascending: false });
+        .select('*', { count: 'exact' });
+
+      // Server-side search
+      if (debouncedSearch.trim()) {
+        const searchTerm = `%${debouncedSearch.trim()}%`;
+        query = query.or(
+          `first_name.ilike.${searchTerm},` +
+          `last_name.ilike.${searchTerm},` +
+          `patient_ref.ilike.${searchTerm},` +
+          `phone.ilike.${searchTerm}`
+        );
+      }
+
+      const { data, count, error } = await query
+        .order('created_at', { ascending: false })
+        .range(from, to);
 
       if (error) {
         console.error('Error fetching patients:', error);
@@ -54,22 +93,49 @@ export default function Patients() {
       }
 
       setPatients(data || []);
+      setTotalCount(count || 0);
     } catch (err) {
       console.error('Error:', err);
     } finally {
       setIsLoading(false);
     }
-  };
+  }, [user, isDentist, debouncedSearch, currentPage]);
 
-  const filteredPatients = patients.filter(patient => {
-    const query = searchQuery.toLowerCase();
-    return (
-      patient.first_name.toLowerCase().includes(query) ||
-      patient.last_name.toLowerCase().includes(query) ||
-      patient.patient_ref.toLowerCase().includes(query) ||
-      (patient.phone && patient.phone.includes(query))
-    );
-  });
+  useEffect(() => {
+    fetchPatients();
+  }, [fetchPatients]);
+
+  // Generate page numbers to display
+  const getPageNumbers = () => {
+    const pages: (number | 'ellipsis')[] = [];
+    
+    if (totalPages <= 5) {
+      for (let i = 1; i <= totalPages; i++) {
+        pages.push(i);
+      }
+    } else {
+      pages.push(1);
+      
+      if (currentPage > 3) {
+        pages.push('ellipsis');
+      }
+      
+      const start = Math.max(2, currentPage - 1);
+      const end = Math.min(totalPages - 1, currentPage + 1);
+      
+      for (let i = start; i <= end; i++) {
+        pages.push(i);
+      }
+      
+      if (currentPage < totalPages - 2) {
+        pages.push('ellipsis');
+      }
+      
+      pages.push(totalPages);
+    }
+    
+    return pages;
+  };
 
   if (authLoading) {
     return (
@@ -98,6 +164,9 @@ export default function Patients() {
     );
   }
 
+  const showingFrom = totalCount === 0 ? 0 : (currentPage - 1) * PAGE_SIZE + 1;
+  const showingTo = Math.min(currentPage * PAGE_SIZE, totalCount);
+
   return (
     <MainLayout>
       <div className="container py-8">
@@ -119,13 +188,23 @@ export default function Patients() {
           />
         </div>
 
+        {/* Results count */}
+        {!isLoading && totalCount > 0 && (
+          <p className="text-sm text-muted-foreground mb-4">
+            {language === 'tr' 
+              ? `${totalCount} hastadan ${showingFrom}-${showingTo} arası gösteriliyor`
+              : `Showing ${showingFrom}-${showingTo} of ${totalCount} patients`
+            }
+          </p>
+        )}
+
         {isLoading ? (
           <div className="space-y-4">
             {[1, 2, 3].map(i => (
               <Skeleton key={i} className="h-24 w-full" />
             ))}
           </div>
-        ) : filteredPatients.length === 0 ? (
+        ) : patients.length === 0 ? (
           <Card>
             <CardContent className="py-12 text-center">
               <User className="h-12 w-12 mx-auto mb-4 text-muted-foreground" />
@@ -141,45 +220,86 @@ export default function Patients() {
             </CardContent>
           </Card>
         ) : (
-          <div className="grid gap-4">
-            {filteredPatients.map(patient => (
-              <Card 
-                key={patient.id} 
-                className="cursor-pointer hover:border-primary/30 hover:shadow-md transition-all"
-                onClick={() => navigate(`/patients/${patient.id}`)}
-              >
-                <CardContent className="py-4">
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-4">
-                      <div className="flex h-12 w-12 items-center justify-center rounded-full bg-primary/10 text-primary">
-                        <User className="h-6 w-6" />
+          <>
+            <div className="grid gap-4">
+              {patients.map(patient => (
+                <Card 
+                  key={patient.id} 
+                  className="cursor-pointer hover:border-primary/30 hover:shadow-md transition-all"
+                  onClick={() => navigate(`/patients/${patient.id}`)}
+                >
+                  <CardContent className="py-4">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-4">
+                        <div className="flex h-12 w-12 items-center justify-center rounded-full bg-primary/10 text-primary">
+                          <User className="h-6 w-6" />
+                        </div>
+                        <div>
+                          <h3 className="font-semibold text-foreground">
+                            {patient.first_name} {patient.last_name}
+                          </h3>
+                          <p className="text-sm text-muted-foreground">{patient.patient_ref}</p>
+                        </div>
                       </div>
-                      <div>
-                        <h3 className="font-semibold text-foreground">
-                          {patient.first_name} {patient.last_name}
-                        </h3>
-                        <p className="text-sm text-muted-foreground">{patient.patient_ref}</p>
+                      <div className="hidden sm:flex items-center gap-6 text-sm text-muted-foreground">
+                        {patient.phone && (
+                          <div className="flex items-center gap-2">
+                            <Phone className="h-4 w-4" />
+                            <span>{patient.phone}</span>
+                          </div>
+                        )}
+                        {patient.birth_date && (
+                          <div className="flex items-center gap-2">
+                            <Calendar className="h-4 w-4" />
+                            <span>{format(new Date(patient.birth_date), 'dd.MM.yyyy')}</span>
+                          </div>
+                        )}
                       </div>
                     </div>
-                    <div className="hidden sm:flex items-center gap-6 text-sm text-muted-foreground">
-                      {patient.phone && (
-                        <div className="flex items-center gap-2">
-                          <Phone className="h-4 w-4" />
-                          <span>{patient.phone}</span>
-                        </div>
-                      )}
-                      {patient.birth_date && (
-                        <div className="flex items-center gap-2">
-                          <Calendar className="h-4 w-4" />
-                          <span>{format(new Date(patient.birth_date), 'dd.MM.yyyy')}</span>
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-            ))}
-          </div>
+                  </CardContent>
+                </Card>
+              ))}
+            </div>
+
+            {/* Pagination */}
+            {totalPages > 1 && (
+              <div className="mt-6">
+                <Pagination>
+                  <PaginationContent>
+                    <PaginationItem>
+                      <PaginationPrevious 
+                        onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+                        className={currentPage === 1 ? 'pointer-events-none opacity-50' : 'cursor-pointer'}
+                      />
+                    </PaginationItem>
+                    
+                    {getPageNumbers().map((page, index) => (
+                      <PaginationItem key={index}>
+                        {page === 'ellipsis' ? (
+                          <PaginationEllipsis />
+                        ) : (
+                          <PaginationLink
+                            onClick={() => setCurrentPage(page)}
+                            isActive={currentPage === page}
+                            className="cursor-pointer"
+                          >
+                            {page}
+                          </PaginationLink>
+                        )}
+                      </PaginationItem>
+                    ))}
+                    
+                    <PaginationItem>
+                      <PaginationNext 
+                        onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
+                        className={currentPage === totalPages ? 'pointer-events-none opacity-50' : 'cursor-pointer'}
+                      />
+                    </PaginationItem>
+                  </PaginationContent>
+                </Pagination>
+              </div>
+            )}
+          </>
         )}
       </div>
     </MainLayout>
