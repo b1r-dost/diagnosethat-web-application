@@ -378,11 +378,11 @@ export function DemoAnalysis() {
               <div className="space-y-4">
                 {(() => {
                   const cariesCount = (result.diseases || []).filter(d => 
-                    d.disease_type.toLowerCase() === 'caries'
+                    d.disease_type?.toLowerCase() === 'caries'
                   ).length;
                   
                   const lesionCount = (result.diseases || []).filter(d => {
-                    const type = d.disease_type.toLowerCase();
+                    const type = d.disease_type?.toLowerCase() || '';
                     return type.includes('apical') || type.includes('lesion');
                   }).length;
                   
