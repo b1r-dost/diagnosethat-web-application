@@ -17,7 +17,8 @@ interface AnalysisResult {
   diseases: Array<{
     disease_id?: number;
     polygon: number[][];
-    disease_type: string;
+    disease_type?: string;
+    type?: string;
     tooth_id?: number;
   }>;
 }
@@ -308,7 +309,8 @@ export function DemoAnalysis() {
         });
         ctx.closePath();
         
-        const colors = getDiseaseColor(disease.disease_type);
+        const diseaseType = disease.disease_type || disease.type;
+        const colors = getDiseaseColor(diseaseType);
         ctx.fillStyle = colors.fill;
         ctx.fill();
         ctx.strokeStyle = colors.stroke;
@@ -377,13 +379,14 @@ export function DemoAnalysis() {
             {result && (
               <div className="space-y-4">
                 {(() => {
-                  const cariesCount = (result.diseases || []).filter(d => 
-                    d.disease_type?.toLowerCase() === 'caries'
-                  ).length;
+                  const cariesCount = (result.diseases || []).filter(d => {
+                    const dt = (d.disease_type || d.type)?.toLowerCase();
+                    return dt === 'caries';
+                  }).length;
                   
                   const lesionCount = (result.diseases || []).filter(d => {
-                    const type = d.disease_type?.toLowerCase() || '';
-                    return type.includes('apical') || type.includes('lesion');
+                    const dt = (d.disease_type || d.type)?.toLowerCase() || '';
+                    return dt.includes('apical') || dt.includes('lesion');
                   }).length;
                   
                   return (
