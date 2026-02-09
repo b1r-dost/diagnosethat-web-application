@@ -1,152 +1,205 @@
 
-# Ana Sayfa Demo: Hastalık Türlerine Göre Renklendirme
+# Beyaz Sayfa Sorunu Çözümü: Error Boundary ve Hata Yönetimi
 
-API'den gelen hastalık türlerine göre farklı renkler ve Türkçe/İngilizce etiketler kullanılacak.
-
----
-
-## Renk Şeması
-
-| Hastalık Türü | API Değeri | TR Adı | EN Adı | Renk |
-|---------------|-----------|--------|--------|------|
-| Çürük | `caries` | Çürük | Caries | Turuncu |
-| Kök İltihaplanması | `periapical_lesion`, `Periapical Lesion`, `apical lesion` | Kök İltihaplanması | Root Inflammation | Kırmızı |
+Analiz gönderildikten sonra uygulamanın beyaz sayfaya düşmesi, yakalanmayan bir JavaScript hatasından kaynaklanıyor. React'ta rendering dışında oluşan asenkron hatalar Error Boundary tarafından yakalanmaz.
 
 ---
 
-## Değişiklikler
+## Sorunun Analizi
 
-### 1. DemoAnalysis.tsx
+### Tespit Edilen Problemler
 
-**Hastalık renk fonksiyonu eklenecek:**
+1. **Global Error Boundary Eksik** - Yakalanmayan hatalar tüm React ağacını çökertiyor
+2. **Polling Hata Yönetimi Yetersiz** - `pollForResult` içindeki `try/catch` hataları yalnızca konsola yazdırıyor, kullanıcıya bildirim yapılmıyor
+3. **Unhandled Promise Rejection** - Asenkron hatalar React Error Boundary'nin kapsamı dışında
+
+---
+
+## Çözüm Planı
+
+### 1. Global Error Boundary Ekle
+
+`src/components/ErrorBoundary.tsx` oluştur:
 
 ```typescript
-const getDiseaseColor = (diseaseType: string): { fill: string; stroke: string } => {
-  const type = diseaseType.toLowerCase().replace(/\s+/g, '_');
-  
-  if (type === 'caries') {
-    return {
-      fill: 'rgba(249, 115, 22, 0.55)',    // orange-500
-      stroke: 'rgba(234, 88, 12, 1)',       // orange-600
-    };
+import { Component, ErrorInfo, ReactNode } from 'react';
+
+interface Props {
+  children: ReactNode;
+}
+
+interface State {
+  hasError: boolean;
+  error: Error | null;
+}
+
+class ErrorBoundary extends Component<Props, State> {
+  constructor(props: Props) {
+    super(props);
+    this.state = { hasError: false, error: null };
   }
-  
-  // periapical_lesion, apical_lesion ve benzeri
-  if (type.includes('apical') || type.includes('lesion')) {
-    return {
-      fill: 'rgba(239, 68, 68, 0.55)',     // red-500
-      stroke: 'rgba(220, 38, 38, 1)',       // red-600
-    };
+
+  static getDerivedStateFromError(error: Error): State {
+    return { hasError: true, error };
   }
-  
-  // Varsayılan (diğer hastalıklar) - kırmızı
-  return {
-    fill: 'rgba(239, 68, 68, 0.55)',
-    stroke: 'rgba(220, 38, 38, 1)',
+
+  componentDidCatch(error: Error, errorInfo: ErrorInfo) {
+    console.error('ErrorBoundary caught:', error, errorInfo);
+  }
+
+  render() {
+    if (this.state.hasError) {
+      return (
+        <div className="min-h-screen flex items-center justify-center bg-background">
+          <div className="text-center p-8">
+            <h2 className="text-xl font-bold mb-4">Bir hata oluştu</h2>
+            <p className="text-muted-foreground mb-4">
+              Sayfa yüklenirken bir sorun oluştu.
+            </p>
+            <button 
+              onClick={() => window.location.reload()}
+              className="px-4 py-2 bg-primary text-primary-foreground rounded"
+            >
+              Sayfayı Yenile
+            </button>
+          </div>
+        </div>
+      );
+    }
+
+    return this.props.children;
+  }
+}
+
+export default ErrorBoundary;
+```
+
+### 2. App.tsx'e Global Unhandled Rejection Handler Ekle
+
+```typescript
+useEffect(() => {
+  const handleRejection = (event: PromiseRejectionEvent) => {
+    console.error("Unhandled rejection:", event.reason);
+    toast.error("Beklenmeyen bir hata oluştu");
+    event.preventDefault();
   };
-};
+
+  window.addEventListener("unhandledrejection", handleRejection);
+  return () => window.removeEventListener("unhandledrejection", handleRejection);
+}, []);
 ```
 
-**Canvas çizim kodu güncellenecek:**
+### 3. DemoAnalysis.tsx Polling Hata Yönetimini Güçlendir
 
+**Mevcut kod (yetersiz):**
 ```typescript
-// Draw disease polygons with type-specific colors
-(result.diseases || []).forEach((disease) => {
-  ctx.beginPath();
-  const points = disease.polygon;
-  if (points.length > 0) {
-    ctx.moveTo(points[0][0], points[0][1]);
-    points.forEach(point => ctx.lineTo(point[0], point[1]));
-    ctx.closePath();
-    
-    const colors = getDiseaseColor(disease.disease_type);
-    ctx.fillStyle = colors.fill;
-    ctx.fill();
-    ctx.strokeStyle = colors.stroke;
-    ctx.lineWidth = 2;
-    ctx.stroke();
+} catch (err) {
+  console.error('Polling error:', err);
+  // Don't stop polling on transient errors
+}
+```
+
+**Yeni kod (geliştirilmiş):**
+```typescript
+} catch (err) {
+  console.error('Polling error:', err);
+  pollingErrorCount++;
+  
+  // 3 ardışık hatadan sonra durdur
+  if (pollingErrorCount >= 3) {
+    clearInterval(pollingRef.current!);
+    setError(language === 'tr' 
+      ? 'Bağlantı hatası. Lütfen tekrar deneyin.' 
+      : 'Connection error. Please try again.');
+    setIsAnalyzing(false);
   }
-});
-```
-
-**İstatistik gösterimi güncellenecek:**
-
-```typescript
-// Hastalık sayılarını türe göre hesapla
-const cariesCount = result.diseases.filter(d => 
-  d.disease_type.toLowerCase() === 'caries'
-).length;
-
-const lesionCount = result.diseases.filter(d => 
-  d.disease_type.toLowerCase().includes('apical') || 
-  d.disease_type.toLowerCase().includes('lesion')
-).length;
-```
-
-**Sonuç kartında türe göre gösterim:**
-
-```tsx
-<div className="flex items-center justify-center gap-6 flex-wrap">
-  <div className="flex items-center gap-2 text-sm">
-    <div className="w-4 h-4 rounded bg-primary/30 border border-primary" />
-    <span className="font-medium">{result.teeth.length}</span>
-    <span className="text-muted-foreground">{t.home.demo.teethDetected}</span>
-  </div>
-  
-  {cariesCount > 0 && (
-    <div className="flex items-center gap-2 text-sm">
-      <div className="w-4 h-4 rounded bg-orange-500/30 border border-orange-500" />
-      <span className="font-medium">{cariesCount}</span>
-      <span className="text-muted-foreground">
-        {language === 'tr' ? 'çürük' : 'caries'}
-      </span>
-    </div>
-  )}
-  
-  {lesionCount > 0 && (
-    <div className="flex items-center gap-2 text-sm">
-      <div className="w-4 h-4 rounded bg-destructive/30 border border-destructive" />
-      <span className="font-medium">{lesionCount}</span>
-      <span className="text-muted-foreground">
-        {language === 'tr' ? 'kök iltihaplanması' : 'root inflammation'}
-      </span>
-    </div>
-  )}
-</div>
+}
 ```
 
 ---
 
-## Görsel Sonuç
-
-```text
-┌─────────────────────────────────────┐
-│         Hızlı Analiz                │
-├─────────────────────────────────────┤
-│                                     │
-│    [Röntgen Görüntüsü]              │
-│    - Dişler: Yeşil tonları          │
-│    - Çürükler: Turuncu              │
-│    - Kök İltihaplanması: Kırmızı    │
-│                                     │
-├─────────────────────────────────────┤
-│ 🟢 32 diş   🟠 2 çürük   🔴 1 kök   │
-└─────────────────────────────────────┘
-```
-
----
-
-## Değişecek Dosya
+## Değişecek Dosyalar
 
 | Dosya | Değişiklik |
 |-------|-----------|
-| `src/components/home/DemoAnalysis.tsx` | Hastalık türüne göre renklendirme, ayrı istatistikler |
+| `src/components/ErrorBoundary.tsx` | **Yeni** - Global hata yakalama bileşeni |
+| `src/App.tsx` | ErrorBoundary wrapper, unhandledrejection listener |
+| `src/components/home/DemoAnalysis.tsx` | Polling hata sayacı, daha sağlam hata yönetimi |
 
 ---
 
-## Teknik Notlar
+## Teknik Detaylar
 
-- API'den gelen `disease_type` değerleri normalize ediliyor (`toLowerCase`, `replace`)
-- Birden fazla varyasyon destekleniyor: `periapical_lesion`, `Periapical Lesion`, `apical lesion`
-- Bilinmeyen hastalık türleri varsayılan olarak kırmızı gösteriliyor
-- i18n çevirileri inline olarak ekleniyor (basitlik için)
+### Error Boundary Kapsamı
+
+```text
+┌─────────────────────────────────────────┐
+│ ErrorBoundary                           │
+│  ┌───────────────────────────────────┐  │
+│  │ QueryClientProvider               │  │
+│  │  ┌─────────────────────────────┐  │  │
+│  │  │ I18nProvider                │  │  │
+│  │  │  ┌───────────────────────┐  │  │  │
+│  │  │  │ AuthProvider          │  │  │  │
+│  │  │  │  ┌─────────────────┐  │  │  │  │
+│  │  │  │  │ Routes          │  │  │  │  │
+│  │  │  │  └─────────────────┘  │  │  │  │
+│  │  │  └───────────────────────┘  │  │  │
+│  │  └─────────────────────────────┘  │  │
+│  └───────────────────────────────────┘  │
+└─────────────────────────────────────────┘
+```
+
+### Polling Hata Yönetimi Akışı
+
+```text
+pollForResult başlar
+    │
+    ▼
+API çağrısı
+    │
+    ├─ Başarılı ──▶ Sonucu işle
+    │
+    └─ Hata ──▶ pollingErrorCount++
+                    │
+                    ├─ < 3 ──▶ Polling devam
+                    │
+                    └─ >= 3 ──▶ Polling durdur
+                                │
+                                ▼
+                          Kullanıcıya hata göster
+```
+
+---
+
+## App.tsx Son Hali (Özet)
+
+```tsx
+import ErrorBoundary from './components/ErrorBoundary';
+import { toast } from 'sonner';
+import { useEffect } from 'react';
+
+function AppContent() {
+  useEffect(() => {
+    const handleRejection = (event: PromiseRejectionEvent) => {
+      console.error("Unhandled rejection:", event.reason);
+      toast.error("Beklenmeyen bir hata oluştu");
+      event.preventDefault();
+    };
+    window.addEventListener("unhandledrejection", handleRejection);
+    return () => window.removeEventListener("unhandledrejection", handleRejection);
+  }, []);
+
+  return (
+    <QueryClientProvider client={queryClient}>
+      {/* ... providers and routes ... */}
+    </QueryClientProvider>
+  );
+}
+
+const App = () => (
+  <ErrorBoundary>
+    <AppContent />
+  </ErrorBoundary>
+);
+```
