@@ -5,7 +5,6 @@ import { Button } from '@/components/ui/button';
 import { useI18n } from '@/lib/i18n';
 import { Upload, AlertCircle, CheckCircle2, Loader2 } from 'lucide-react';
 import { Link } from 'react-router-dom';
-import { supabase } from '@/integrations/supabase/client';
 
 interface AnalysisResult {
   radiograph_type?: string;
@@ -186,7 +185,24 @@ export function DemoAnalysis() {
 
         if (status === 'completed' && result) {
           clearInterval(pollingRef.current!);
-          setResult(result);
+          
+          // Log result structure for debugging
+          console.log('Analysis completed, result structure:', {
+            hasTeeth: Array.isArray(result.teeth),
+            teethCount: result.teeth?.length,
+            hasDiseases: Array.isArray(result.diseases),
+            diseasesCount: result.diseases?.length,
+          });
+          
+          // Validate and sanitize result structure
+          const safeResult: AnalysisResult = {
+            radiograph_type: result.radiograph_type,
+            inference_version: result.inference_version,
+            teeth: Array.isArray(result.teeth) ? result.teeth : [],
+            diseases: Array.isArray(result.diseases) ? result.diseases : [],
+          };
+          
+          setResult(safeResult);
           setIsAnalyzing(false);
           setStatusMessage('');
         } else if (status === 'error') {
@@ -236,39 +252,53 @@ export function DemoAnalysis() {
       // Draw original image
       ctx.drawImage(img, 0, 0);
 
-      // Draw teeth polygons with orange tones
+      // Draw teeth polygons with green tones - defensive coding
       // API returns pixel coordinates matching the original image dimensions
-      result.teeth.forEach((tooth) => {
+      (result.teeth || []).forEach((tooth) => {
+        const points = tooth?.polygon;
+        if (!Array.isArray(points) || points.length === 0) return;
+        
+        const firstPoint = points[0];
+        if (!Array.isArray(firstPoint) || firstPoint.length < 2) return;
+        
         ctx.beginPath();
-        const points = tooth.polygon;
-        if (points.length > 0) {
-          ctx.moveTo(points[0][0], points[0][1]);
-          points.forEach(point => ctx.lineTo(point[0], point[1]));
-          ctx.closePath();
-          ctx.fillStyle = getToothColor(tooth.tooth_id);
-          ctx.fill();
-          ctx.strokeStyle = 'rgba(34, 197, 94, 0.7)';
-          ctx.lineWidth = 2;
-          ctx.stroke();
-        }
+        ctx.moveTo(firstPoint[0], firstPoint[1]);
+        points.forEach(point => {
+          if (Array.isArray(point) && point.length >= 2) {
+            ctx.lineTo(point[0], point[1]);
+          }
+        });
+        ctx.closePath();
+        ctx.fillStyle = getToothColor(tooth.tooth_id);
+        ctx.fill();
+        ctx.strokeStyle = 'rgba(34, 197, 94, 0.7)';
+        ctx.lineWidth = 2;
+        ctx.stroke();
       });
 
-      // Draw disease polygons with type-specific colors
+      // Draw disease polygons with type-specific colors - defensive coding
       (result.diseases || []).forEach((disease) => {
+        const points = disease?.polygon;
+        if (!Array.isArray(points) || points.length === 0) return;
+        
+        const firstPoint = points[0];
+        if (!Array.isArray(firstPoint) || firstPoint.length < 2) return;
+        
         ctx.beginPath();
-        const points = disease.polygon;
-        if (points.length > 0) {
-          ctx.moveTo(points[0][0], points[0][1]);
-          points.forEach(point => ctx.lineTo(point[0], point[1]));
-          ctx.closePath();
-          
-          const colors = getDiseaseColor(disease.disease_type);
-          ctx.fillStyle = colors.fill;
-          ctx.fill();
-          ctx.strokeStyle = colors.stroke;
-          ctx.lineWidth = 2;
-          ctx.stroke();
-        }
+        ctx.moveTo(firstPoint[0], firstPoint[1]);
+        points.forEach(point => {
+          if (Array.isArray(point) && point.length >= 2) {
+            ctx.lineTo(point[0], point[1]);
+          }
+        });
+        ctx.closePath();
+        
+        const colors = getDiseaseColor(disease.disease_type);
+        ctx.fillStyle = colors.fill;
+        ctx.fill();
+        ctx.strokeStyle = colors.stroke;
+        ctx.lineWidth = 2;
+        ctx.stroke();
       });
     };
     img.src = image;
