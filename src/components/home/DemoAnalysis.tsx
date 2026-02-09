@@ -36,7 +36,15 @@ const getToothColor = (id: number): string => {
 };
 
 // Get disease-specific colors based on type
-const getDiseaseColor = (diseaseType: string): { fill: string; stroke: string } => {
+const getDiseaseColor = (diseaseType: string | undefined): { fill: string; stroke: string } => {
+  // Güvenli kontrol: undefined veya boş string ise varsayılan renk döndür
+  if (!diseaseType) {
+    return {
+      fill: 'rgba(239, 68, 68, 0.55)',
+      stroke: 'rgba(220, 38, 38, 1)',
+    };
+  }
+  
   const type = diseaseType.toLowerCase().replace(/\s+/g, '_');
   
   if (type === 'caries') {
@@ -123,8 +131,14 @@ export function DemoAnalysis() {
       );
 
       if (!submitResponse.ok) {
-        const errorData = await submitResponse.json();
-        throw new Error(errorData.error || 'Failed to submit analysis');
+        let errorMessage = 'Failed to submit analysis';
+        try {
+          const errorData = await submitResponse.json();
+          errorMessage = errorData.error || errorMessage;
+        } catch {
+          // JSON parse başarısız olursa sessizce devam et
+        }
+        throw new Error(errorMessage);
       }
 
       const submitResult = await submitResponse.json();
@@ -278,6 +292,7 @@ export function DemoAnalysis() {
 
       // Draw disease polygons with type-specific colors - defensive coding
       (result.diseases || []).forEach((disease) => {
+        if (!disease) return; // null/undefined disease objesi kontrolü
         const points = disease?.polygon;
         if (!Array.isArray(points) || points.length === 0) return;
         
