@@ -151,7 +151,9 @@ export function DemoAnalysis() {
 
   const pollForResult = (jobId: string) => {
     let attempts = 0;
+    let consecutiveErrors = 0;
     const maxAttempts = 40; // 2 minutes max (40 * 3 seconds)
+    const maxConsecutiveErrors = 3;
 
     pollingRef.current = setInterval(async () => {
       attempts++;
@@ -174,6 +176,9 @@ export function DemoAnalysis() {
 
         const pollResult = await pollResponse.json();
 
+        // Reset consecutive error count on successful response
+        consecutiveErrors = 0;
+
         // Accept both flat and nested response shapes
         const status = pollResult.status ?? pollResult.data?.status;
         const result = pollResult.result ?? pollResult.data?.result;
@@ -192,7 +197,16 @@ export function DemoAnalysis() {
         // If pending/processing, continue polling
       } catch (err) {
         console.error('Polling error:', err);
-        // Don't stop polling on transient errors
+        consecutiveErrors++;
+        
+        // Stop polling after 3 consecutive errors
+        if (consecutiveErrors >= maxConsecutiveErrors) {
+          clearInterval(pollingRef.current!);
+          setError(language === 'tr' 
+            ? 'Bağlantı hatası. Lütfen tekrar deneyin.' 
+            : 'Connection error. Please try again.');
+          setIsAnalyzing(false);
+        }
       }
     }, 3000); // Poll every 3 seconds
   };
