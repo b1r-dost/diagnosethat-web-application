@@ -1,20 +1,32 @@
- interface Env {
-   GATEWAY_API_KEY: string;
-   GATEWAY_API_URL: string;
- }
+interface Env {
+  GATEWAY_API_KEY: string;
+  GATEWAY_API_URL: string;
+}
+
+const ALLOWED_ORIGINS = [
+  'https://diagnosethat.net',
+  'https://www.diagnosethat.net',
+  'https://diagnosethat.pages.dev',
+  'https://id-preview--8885573f-0277-4eeb-bfdf-9e7c3ab28184.lovable.app',
+];
+
+function getCorsHeaders(request: Request) {
+  const origin = request.headers.get('Origin') || '';
+  const allowedOrigin = ALLOWED_ORIGINS.includes(origin) ? origin : ALLOWED_ORIGINS[0];
+  return {
+    'Access-Control-Allow-Origin': allowedOrigin,
+    'Access-Control-Allow-Headers': 'Content-Type, Authorization',
+    'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
+  };
+}
+
+export const onRequestOptions: PagesFunction = async (context) => {
+  return new Response(null, { headers: getCorsHeaders(context.request) });
+};
  
- const corsHeaders = {
-   'Access-Control-Allow-Origin': '*',
-   'Access-Control-Allow-Headers': 'Content-Type, Authorization',
-   'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
- };
- 
- export const onRequestOptions: PagesFunction = async () => {
-   return new Response(null, { headers: corsHeaders });
- };
- 
- export const onRequestPost: PagesFunction<Env> = async (context) => {
-   try {
+export const onRequestPost: PagesFunction<Env> = async (context) => {
+    const corsHeaders = getCorsHeaders(context.request);
+    try {
      const body = await context.request.json() as {
        image_base64: string;
        clinic_ref?: string;
