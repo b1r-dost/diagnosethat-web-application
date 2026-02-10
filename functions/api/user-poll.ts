@@ -10,6 +10,8 @@ interface Env {
 const ALLOWED_ORIGINS = [
   'https://diagnosethat.net',
   'https://www.diagnosethat.net',
+  'https://taniyorum.net',
+  'https://www.taniyorum.net',
   'https://diagnosethat.pages.dev',
   'https://id-preview--8885573f-0277-4eeb-bfdf-9e7c3ab28184.lovable.app',
 ];
