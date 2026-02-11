@@ -1,52 +1,54 @@
 
 
-# CORS Ayarlarini Domain ile Sinirla
+# Hata Duzeltmeleri (Bug Fix) - 3 Madde
 
-## Sorun
+## 2.1 Dosya Boyutu Gosterimi Hatasi
 
-`functions/api/` altindaki tum API fonksiyonlarinda `Access-Control-Allow-Origin: '*'` kullaniliyor. Bu, herhangi bir web sitesinin bu API'leri cagirabilmesine izin veriyor.
+**Dosya:** `src/pages/UploadRadiograph.tsx` satir 169
 
-## Cozum
-
-`*` yerine sadece izin verilen domainleri belirle. Cloudflare Pages Functions'da `context.request.headers.get('Origin')` kontrol edilerek dinamik CORS uygulanacak.
-
-### Yaklasim
-
-Her 4 dosyada ayni degisiklik yapilacak:
+Operator onceligi hatasi nedeniyle dosya boyutu byte cinsinden gosteriliyor (MB yerine).
 
 ```typescript
-const ALLOWED_ORIGINS = [
-  'https://diagnosethat.net',
-  'https://www.diagnosethat.net',
-  'https://diagnosethat.pages.dev',
-];
+// Mevcut (HATALI):
+(file?.size || 0 / 1024 / 1024).toFixed(2)
 
-function getCorsHeaders(request: Request) {
-  const origin = request.headers.get('Origin') || '';
-  const allowedOrigin = ALLOWED_ORIGINS.includes(origin) ? origin : ALLOWED_ORIGINS[0];
-  return {
-    'Access-Control-Allow-Origin': allowedOrigin,
-    'Access-Control-Allow-Headers': 'Content-Type, Authorization',
-    'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
-  };
-}
+// Duzeltilmis:
+((file?.size || 0) / 1024 / 1024).toFixed(2)
 ```
 
-Preview ortaminda test edebilmek icin Lovable preview URL'si de eklenmeli.
+---
+
+## 2.2 Analysis.tsx Disease Renkleri
+
+**Dosya:** `src/pages/Analysis.tsx` satir 180-184
+
+Tum hastaliklar icin tek kirmizi renk kullaniliyor. `DemoAnalysis.tsx`'deki `getDiseaseColor` fonksiyonunun aynisi eklenecek.
+
+Degisiklikler:
+- `getDiseaseColor` fonksiyonu eklenir (caries = turuncu, apical/lesion = kirmizi)
+- Satir 180-183'te sabit renkler yerine `getDiseaseColor(disease.disease_type || disease.type)` kullanilir
+- Satir 193'te disease label stroke rengi de `getDiseaseColor`'dan alinir
+
+---
+
+## 2.3 Analysis Polling Cleanup
+
+**Dosya:** `src/pages/Analysis.tsx`
+
+`pollForResult` icinde `setTimeout` ile recursive polling yapiliyor (satir 344, 392, 429, 432) ancak component unmount olursa bu timer'lar temizlenmiyor.
+
+Cozum:
+- Bir `useRef<boolean>` (ornegin `isMountedRef`) olusturulur
+- `useEffect` cleanup'inda `isMountedRef.current = false` yapilir
+- `poll` fonksiyonunda ve `startAnalysis`'deki `setTimeout`'ta `isMountedRef.current` kontrol edilir
+- Unmount olmus component'te state guncellenmez
+
+---
 
 ## Degisecek Dosyalar
 
 | Dosya | Degisiklik |
 |-------|-----------|
-| `functions/api/demo-submit.ts` | Statik `corsHeaders` yerine `getCorsHeaders(request)` |
-| `functions/api/demo-poll.ts` | Ayni degisiklik |
-| `functions/api/user-submit.ts` | Ayni degisiklik |
-| `functions/api/user-poll.ts` | Ayni degisiklik |
-
-## Teknik Detay
-
-- `Origin` header'i kontrol edilir, izin verilen listedeyse o origin dondurulur
-- Listede degilse varsayilan domain (`diagnosethat.net`) dondurulur
-- Her Response objesinde (basarili, hata, OPTIONS) dinamik CORS header'lari kullanilir
-- Preview/development icin Lovable preview URL'si de listeye eklenir
+| `src/pages/UploadRadiograph.tsx` | Satir 169: parantez duzeltmesi |
+| `src/pages/Analysis.tsx` | `getDiseaseColor` eklenmesi, polling cleanup ref'i |
 
