@@ -116,6 +116,21 @@ export default function Analysis() {
     return colors[id % colors.length];
   };
 
+  // Get disease-specific colors based on type
+  const getDiseaseColor = (diseaseType: string | undefined): { fill: string; stroke: string } => {
+    if (!diseaseType) {
+      return { fill: 'rgba(239, 68, 68, 0.55)', stroke: 'rgba(220, 38, 38, 1)' };
+    }
+    const type = diseaseType.toLowerCase().replace(/\s+/g, '_');
+    if (type === 'caries') {
+      return { fill: 'rgba(249, 115, 22, 0.55)', stroke: 'rgba(234, 88, 12, 1)' };
+    }
+    if (type.includes('apical') || type.includes('lesion')) {
+      return { fill: 'rgba(239, 68, 68, 0.55)', stroke: 'rgba(220, 38, 38, 1)' };
+    }
+    return { fill: 'rgba(239, 68, 68, 0.55)', stroke: 'rgba(220, 38, 38, 1)' };
+  };
+
   // Draw overlays on canvas
   const drawOverlays = useCallback(() => {
     if (!canvasRef.current || !imageRef.current) return;
@@ -177,9 +192,10 @@ export default function Analysis() {
           ctx.moveTo(points[0][0], points[0][1]);
           points.forEach(point => ctx.lineTo(point[0], point[1]));
           ctx.closePath();
-          ctx.fillStyle = 'rgba(239, 68, 68, 0.55)';
+          const diseaseColors = getDiseaseColor(disease.disease_type ?? disease.type);
+          ctx.fillStyle = diseaseColors.fill;
           ctx.fill();
-          ctx.strokeStyle = 'rgba(220, 38, 38, 1)';
+          ctx.strokeStyle = diseaseColors.stroke;
           ctx.lineWidth = 2;
           ctx.stroke();
           
@@ -190,7 +206,7 @@ export default function Analysis() {
             const label = disease.disease_type ?? disease.type ?? 'Unknown';
             ctx.font = 'bold 14px sans-serif';
             ctx.fillStyle = 'white';
-            ctx.strokeStyle = 'rgba(220, 38, 38, 1)';
+            ctx.strokeStyle = diseaseColors.stroke;
             ctx.lineWidth = 3;
             ctx.strokeText(label, centerX - 30, centerY);
             ctx.fillText(label, centerX - 30, centerY);
@@ -342,7 +358,7 @@ export default function Analysis() {
       
       // Wait 3 seconds before starting poll (give Gateway time to register the job)
       setTimeout(() => {
-        pollForResult(data.job_id);
+        if (isMountedRef.current) pollForResult(data.job_id);
       }, 3000);
     } catch (err) {
       console.error('Error starting analysis:', err);
@@ -357,6 +373,7 @@ export default function Analysis() {
     let attempts = 0;
 
     const poll = async () => {
+      if (!isMountedRef.current) return;
       if (attempts >= maxAttempts) {
         setStatusMessage(language === 'tr' ? 'Analiz zaman aşımına uğradı' : 'Analysis timed out');
         setIsAnalyzing(false);
@@ -389,7 +406,7 @@ export default function Analysis() {
 
         if (!response.ok) {
           console.error('Poll error:', response.status);
-          setTimeout(poll, 5000);
+          if (isMountedRef.current) setTimeout(poll, 5000);
           return;
         }
 
@@ -426,19 +443,24 @@ export default function Analysis() {
             ? `Analiz ediliyor... (${Math.floor(attempts * 5 / 60)}:${String(attempts * 5 % 60).padStart(2, '0')})` 
             : `Analyzing... (${Math.floor(attempts * 5 / 60)}:${String(attempts * 5 % 60).padStart(2, '0')})`
         );
-        setTimeout(poll, 5000);
+        if (isMountedRef.current) setTimeout(poll, 5000);
       } catch (err) {
         console.error('Poll error:', err);
-        setTimeout(poll, 5000);
+        if (isMountedRef.current) setTimeout(poll, 5000);
       }
     };
 
     poll();
   }, [id, language, fetchRadiograph, parseResultToFindings]);
 
+  // Mounted ref for polling cleanup
+  const isMountedRef = useRef(true);
+
   useEffect(() => {
+    isMountedRef.current = true;
     if (id && user) {
       fetchRadiograph().then((data) => {
+        if (!isMountedRef.current) return;
         if (data && data.analysis_status === 'pending') {
           startAnalysis(data);
         } else if (data && data.analysis_status === 'processing') {
@@ -447,7 +469,6 @@ export default function Analysis() {
             setStatusMessage(language === 'tr' ? 'Analiz devam ediyor...' : 'Analysis in progress...');
             pollForResult(data.job_id);
           } else {
-            // job_id is missing, previous analysis failed
             toast.warning(language === 'tr' 
               ? 'Önceki analiz başarısız oldu. Yeniden analiz başlatın.' 
               : 'Previous analysis failed. Please restart analysis.');
@@ -455,6 +476,9 @@ export default function Analysis() {
         }
       });
     }
+    return () => {
+      isMountedRef.current = false;
+    };
   }, [id, user, isDentist]);
 
   const handleReanalyze = async () => {

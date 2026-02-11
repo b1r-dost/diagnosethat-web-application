@@ -166,7 +166,7 @@ export default function UploadRadiograph() {
                   </Button>
                 </div>
                 <p className="text-sm text-muted-foreground text-center">
-                  {file?.name} ({(file?.size || 0 / 1024 / 1024).toFixed(2)} MB)
+                  {file?.name} ({((file?.size || 0) / 1024 / 1024).toFixed(2)} MB)
                 </p>
               </div>
             )}
