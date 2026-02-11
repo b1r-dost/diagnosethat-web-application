@@ -134,52 +134,33 @@ export default function Dashboard() {
 
   const fetchDashboardData = async () => {
     try {
-      // Fetch recent patients
-      const { data: patients } = await supabase
-        .from('patients')
-        .select('*')
-        .order('created_at', { ascending: false })
-        .limit(5);
-
-      setRecentPatients(patients || []);
-
-      // Fetch recent radiographs
-      const { data: radiographs } = await supabase
-        .from('radiographs')
-        .select('*')
-        .order('created_at', { ascending: false })
-        .limit(5);
-
-      setRecentRadiographs(radiographs || []);
-
-      // Calculate stats
-      const { count: totalPatients } = await supabase
-        .from('patients')
-        .select('*', { count: 'exact', head: true });
-
-      const { count: totalRadiographs } = await supabase
-        .from('radiographs')
-        .select('*', { count: 'exact', head: true });
-
-      const { count: pendingAnalyses } = await supabase
-        .from('radiographs')
-        .select('*', { count: 'exact', head: true })
-        .eq('analysis_status', 'pending');
-
       const thisMonth = new Date();
       thisMonth.setDate(1);
       thisMonth.setHours(0, 0, 0, 0);
 
-      const { count: thisMonthPatients } = await supabase
-        .from('patients')
-        .select('*', { count: 'exact', head: true })
-        .gte('created_at', thisMonth.toISOString());
+      const [
+        patientsRes,
+        radiographsRes,
+        totalPatientsRes,
+        totalRadiographsRes,
+        pendingAnalysesRes,
+        thisMonthPatientsRes,
+      ] = await Promise.all([
+        supabase.from('patients').select('*').order('created_at', { ascending: false }).limit(5),
+        supabase.from('radiographs').select('*').order('created_at', { ascending: false }).limit(5),
+        supabase.from('patients').select('*', { count: 'exact', head: true }),
+        supabase.from('radiographs').select('*', { count: 'exact', head: true }),
+        supabase.from('radiographs').select('*', { count: 'exact', head: true }).eq('analysis_status', 'pending'),
+        supabase.from('patients').select('*', { count: 'exact', head: true }).gte('created_at', thisMonth.toISOString()),
+      ]);
 
+      setRecentPatients(patientsRes.data || []);
+      setRecentRadiographs(radiographsRes.data || []);
       setStats({
-        totalPatients: totalPatients || 0,
-        totalRadiographs: totalRadiographs || 0,
-        pendingAnalyses: pendingAnalyses || 0,
-        thisMonthPatients: thisMonthPatients || 0
+        totalPatients: totalPatientsRes.count || 0,
+        totalRadiographs: totalRadiographsRes.count || 0,
+        pendingAnalyses: pendingAnalysesRes.count || 0,
+        thisMonthPatients: thisMonthPatientsRes.count || 0,
       });
     } catch (err) {
       console.error('Error fetching dashboard data:', err);
