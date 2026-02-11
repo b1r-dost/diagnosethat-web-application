@@ -5,70 +5,7 @@ import { Button } from '@/components/ui/button';
 import { useI18n } from '@/lib/i18n';
 import { Upload, AlertCircle, CheckCircle2, Loader2 } from 'lucide-react';
 import { Link } from 'react-router-dom';
-
-interface AnalysisResult {
-  radiograph_type?: string;
-  inference_version?: string;
-  teeth: Array<{
-    tooth_id: number;
-    confidence?: number;
-    polygon: number[][];
-  }>;
-  diseases: Array<{
-    disease_id?: number;
-    polygon: number[][];
-    disease_type?: string;
-    type?: string;
-    tooth_id?: number;
-  }>;
-}
-
-// Generate a consistent color for teeth based on ID
-const getToothColor = (id: number): string => {
-  const colors = [
-    'rgba(34, 197, 94, 0.3)',   // green-500
-    'rgba(22, 163, 74, 0.3)',   // green-600
-    'rgba(21, 128, 61, 0.3)',   // green-700
-    'rgba(74, 222, 128, 0.3)',  // green-400
-    'rgba(16, 185, 129, 0.3)',  // emerald-500
-    'rgba(5, 150, 105, 0.3)',   // emerald-600
-  ];
-  return colors[id % colors.length];
-};
-
-// Get disease-specific colors based on type
-const getDiseaseColor = (diseaseType: string | undefined): { fill: string; stroke: string } => {
-  // Güvenli kontrol: undefined veya boş string ise varsayılan renk döndür
-  if (!diseaseType) {
-    return {
-      fill: 'rgba(239, 68, 68, 0.55)',
-      stroke: 'rgba(220, 38, 38, 1)',
-    };
-  }
-  
-  const type = diseaseType.toLowerCase().replace(/\s+/g, '_');
-  
-  if (type === 'caries') {
-    return {
-      fill: 'rgba(249, 115, 22, 0.55)',    // orange-500
-      stroke: 'rgba(234, 88, 12, 1)',       // orange-600
-    };
-  }
-  
-  // periapical_lesion, apical_lesion ve benzeri
-  if (type.includes('apical') || type.includes('lesion')) {
-    return {
-      fill: 'rgba(239, 68, 68, 0.55)',     // red-500
-      stroke: 'rgba(220, 38, 38, 1)',       // red-600
-    };
-  }
-  
-  // Varsayılan (diğer hastalıklar) - kırmızı
-  return {
-    fill: 'rgba(239, 68, 68, 0.55)',
-    stroke: 'rgba(220, 38, 38, 1)',
-  };
-};
+import { AnalysisResult, getToothColor, getDiseaseColor } from '@/types/analysis';
 
 export function DemoAnalysis() {
   const { t, language, clinicRef } = useI18n();

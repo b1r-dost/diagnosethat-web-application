@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
+import { AnalysisResult, getToothColor, getDiseaseColor } from '@/types/analysis';
 import { MainLayout } from '@/components/layout/MainLayout';
 import { useI18n } from '@/lib/i18n';
 import { useAuth } from '@/hooks/useAuth';
@@ -47,25 +48,7 @@ interface Radiograph {
   patient_id: string | null;
 }
 
-interface AnalysisResult {
-  radiograph_type?: string;
-  inference_version?: string;
-  teeth?: Array<{
-    id?: number;
-    tooth_id?: number;
-    polygon: number[][];
-    tooth_number?: number;
-    confidence?: number;
-  }>;
-  diseases?: Array<{
-    id?: number;
-    polygon: number[][];
-    disease_type?: string;
-    type?: string;
-    tooth_id?: number;
-    confidence?: number;
-  }>;
-}
+// AnalysisResult, getToothColor, getDiseaseColor imported from @/types/analysis
 
 interface Finding {
   id: number;
@@ -103,33 +86,6 @@ export default function Analysis() {
   const imageRef = useRef<HTMLImageElement | null>(null);
   const [imageLoaded, setImageLoaded] = useState(false);
 
-  // Generate consistent color for teeth based on ID
-  const getToothColor = (id: number): string => {
-    const colors = [
-      'rgba(34, 197, 94, 0.3)',   // green-500
-      'rgba(22, 163, 74, 0.3)',   // green-600
-      'rgba(21, 128, 61, 0.3)',   // green-700
-      'rgba(74, 222, 128, 0.3)',  // green-400
-      'rgba(16, 185, 129, 0.3)',  // emerald-500
-      'rgba(5, 150, 105, 0.3)',   // emerald-600
-    ];
-    return colors[id % colors.length];
-  };
-
-  // Get disease-specific colors based on type
-  const getDiseaseColor = (diseaseType: string | undefined): { fill: string; stroke: string } => {
-    if (!diseaseType) {
-      return { fill: 'rgba(239, 68, 68, 0.55)', stroke: 'rgba(220, 38, 38, 1)' };
-    }
-    const type = diseaseType.toLowerCase().replace(/\s+/g, '_');
-    if (type === 'caries') {
-      return { fill: 'rgba(249, 115, 22, 0.55)', stroke: 'rgba(234, 88, 12, 1)' };
-    }
-    if (type.includes('apical') || type.includes('lesion')) {
-      return { fill: 'rgba(239, 68, 68, 0.55)', stroke: 'rgba(220, 38, 38, 1)' };
-    }
-    return { fill: 'rgba(239, 68, 68, 0.55)', stroke: 'rgba(220, 38, 38, 1)' };
-  };
 
   // Draw overlays on canvas
   const drawOverlays = useCallback(() => {
