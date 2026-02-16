@@ -33,6 +33,7 @@ import {
   AlertDialogTrigger,
 } from '@/components/ui/alert-dialog';
 import { toast } from 'sonner';
+import { SubscriptionTab } from '@/components/settings/SubscriptionTab';
 
 export default function Settings() {
   const { t, language } = useI18n();
@@ -575,26 +576,7 @@ export default function Settings() {
           </TabsContent>
 
           {/* Subscription Tab */}
-          <TabsContent value="subscription">
-            <Card>
-              <CardHeader>
-                <CardTitle>{t.settings.subscription.title}</CardTitle>
-                <CardDescription>{t.settings.subscription.developing}</CardDescription>
-              </CardHeader>
-              <CardContent>
-                <div className="text-center py-8">
-                  <CreditCard className="h-12 w-12 mx-auto mb-4 text-muted-foreground" />
-                  <p className="text-muted-foreground">{t.settings.subscription.noPlan}</p>
-                  <Button className="mt-4 gradient-primary" disabled>
-                    {t.settings.subscription.buyPackage}
-                  </Button>
-                  <p className="text-xs text-muted-foreground mt-2">
-                    {t.settings.subscription.developing}
-                  </p>
-                </div>
-              </CardContent>
-            </Card>
-          </TabsContent>
+          <SubscriptionTab />
         </Tabs>
       </div>
     </MainLayout>

@@ -6,6 +6,7 @@ import { useAuth } from '@/hooks/useAuth';
 import { supabase } from '@/integrations/supabase/client';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
+import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
 import { 
   Loader2, 
@@ -16,11 +17,13 @@ import {
   TrendingUp,
   Calendar,
   ArrowRight,
-  Upload
+  Upload,
+  Heart
 } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { format } from 'date-fns';
 import { QuickAddPatientDialog } from '@/components/dashboard/QuickAddPatientDialog';
+import { SupportPrompt } from '@/components/dashboard/SupportPrompt';
 
 interface Patient {
   id: string;
@@ -70,6 +73,7 @@ export default function Dashboard() {
   });
   const [dataLoading, setDataLoading] = useState(true);
   const [quickAddOpen, setQuickAddOpen] = useState(false);
+  const [isSupporter, setIsSupporter] = useState(false);
   useEffect(() => {
     if (!isLoading && !user) {
       navigate('/auth?mode=login');
@@ -79,6 +83,7 @@ export default function Dashboard() {
   useEffect(() => {
     if (user) {
       fetchAnnouncements();
+      checkSupporterStatus();
       if (isDentist) {
         fetchDashboardData();
       } else if (isPatient) {
@@ -90,6 +95,22 @@ export default function Dashboard() {
       setDataLoading(false);
     }
   }, [user, isDentist, isPatient]);
+
+  const checkSupporterStatus = async () => {
+    if (!user) return;
+    const now = new Date();
+    const currentMonth = now.toLocaleString('en-US', { month: 'long' }).toLowerCase();
+    const currentYear = now.getFullYear();
+    const { data } = await supabase
+      .from('subscriptions')
+      .select('id')
+      .eq('user_id', user.id)
+      .eq('status', 'active')
+      .eq('package_month', currentMonth)
+      .eq('package_year', currentYear)
+      .limit(1);
+    setIsSupporter(!!(data && data.length > 0));
+  };
 
   const fetchPatientRadiographs = async () => {
     try {
@@ -201,12 +222,23 @@ export default function Dashboard() {
               />
             )}
             <div>
-              <h1 className="text-3xl font-bold">
-                {t.dashboard.welcome}, {displayName}!
-              </h1>
+              <div className="flex items-center gap-2">
+                <h1 className="text-3xl font-bold">
+                  {t.dashboard.welcome}, {displayName}!
+                </h1>
+                {isSupporter && (
+                  <Badge variant="secondary" className="gap-1">
+                    <Heart className="h-3 w-3 fill-current text-destructive" />
+                    {t.dashboard.supportBadge}
+                  </Badge>
+                )}
+              </div>
               <p className="text-muted-foreground">
                 {isDentist ? t.auth.dentist : isPatient ? t.auth.patient : ''}
               </p>
+              {isSupporter && (
+                <p className="text-sm text-primary mt-1">{t.dashboard.thankYou}</p>
+              )}
             </div>
           </div>
         </div>
@@ -465,6 +497,9 @@ export default function Dashboard() {
           onOpenChange={setQuickAddOpen}
           onSuccess={() => fetchDashboardData()}
         />
+
+        {/* Support Prompt */}
+        <SupportPrompt />
       </div>
     </MainLayout>
   );
