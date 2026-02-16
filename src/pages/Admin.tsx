@@ -16,8 +16,10 @@ import {
   MessageSquare,
   Map,
   Server,
-  Search
+  Search,
+  FileText
 } from 'lucide-react';
+import { LegalDocumentsTab } from '@/components/admin/LegalDocumentsTab';
 import {
   Table,
   TableBody,
@@ -166,6 +168,10 @@ export default function Admin() {
               <Server className="h-4 w-4" />
               {t.admin.tabs.server}
             </TabsTrigger>
+            <TabsTrigger value="legal" className="flex items-center gap-2">
+              <FileText className="h-4 w-4" />
+              {t.admin.tabs.legal}
+            </TabsTrigger>
           </TabsList>
 
           {/* Users Tab */}
@@ -312,6 +318,11 @@ export default function Admin() {
                 </p>
               </CardContent>
             </Card>
+          </TabsContent>
+
+          {/* Legal Documents Tab */}
+          <TabsContent value="legal">
+            <LegalDocumentsTab />
           </TabsContent>
         </Tabs>
       </div>

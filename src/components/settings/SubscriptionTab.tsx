@@ -8,7 +8,7 @@ import { Badge } from '@/components/ui/badge';
 import { TabsContent } from '@/components/ui/tabs';
 import { CreditCard, Heart, CalendarDays } from 'lucide-react';
 import { format } from 'date-fns';
-import { toast } from 'sonner';
+import { useNavigate } from 'react-router-dom';
 
 interface Subscription {
   id: string;
@@ -24,6 +24,7 @@ interface Subscription {
 export function SubscriptionTab() {
   const { user } = useAuth();
   const { t, language } = useI18n();
+  const navigate = useNavigate();
   const [subscription, setSubscription] = useState<Subscription | null>(null);
   const [loading, setLoading] = useState(true);
 
@@ -50,7 +51,7 @@ export function SubscriptionTab() {
   };
 
   const handleBuyClick = () => {
-    toast.info(t.settings.subscription.developing);
+    navigate('/payment');
   };
 
   const monthLabel = (month: string) => {
@@ -104,7 +105,6 @@ export function SubscriptionTab() {
                 {t.settings.subscription.buyPackage}
               </Button>
               <p className="text-xs text-muted-foreground mt-2">
-                {t.settings.subscription.developing}
               </p>
             </div>
           )}

@@ -215,6 +215,7 @@ export const translations = {
         suggestions: 'Öneriler',
         roadmap: 'Yol Haritası',
         server: 'Sunucu Yönetimi',
+        legal: 'Sözleşmeler',
       },
       users: {
         title: 'Kayıtlı Kullanıcılar',
@@ -242,6 +243,12 @@ export const translations = {
       server: {
         title: 'Sunucu Yönetimi',
         inactive: 'Bu özellik henüz aktif değildir.',
+      },
+      legal: {
+        title: 'Sözleşme Yönetimi',
+        upload: 'Belge Yükle',
+        currentFile: 'Mevcut Dosya',
+        noFile: 'Belge yüklenmemiş',
       },
     },
     // Suggestions
@@ -280,6 +287,25 @@ export const translations = {
       message: 'Bu hizmeti ücretsiz sunmaya devam edebilmemiz için desteğinize ihtiyacımız var.',
       button: 'Destekleme Paketi Al',
       close: 'Kapat',
+    },
+    // Legal
+    legal: {
+      termsOfService: 'Kullanıcı Sözleşmesi',
+      privacyPolicy: 'Gizlilik Politikası',
+      preInformation: 'Ön Bilgilendirme Formu',
+      distanceSales: 'Mesafeli Satış Sözleşmesi',
+      acceptTerms: 'okudum ve kabul ediyorum',
+      reviewPrivacy: 'Gizlilik politikamızı inceleyebilirsiniz',
+    },
+    // Payment
+    payment: {
+      title: 'Destekleme Paketi',
+      oneTime: 'Tekli (Bu ay)',
+      recurring: 'Sürekli (Her ay)',
+      payButton: 'Öde',
+      cardNumber: 'Kart Numarası',
+      expiry: 'Son Kullanma',
+      cvv: 'CVV',
     },
     // Common
     common: {
@@ -525,6 +551,7 @@ export const translations = {
         suggestions: 'Suggestions',
         roadmap: 'Roadmap',
         server: 'Server Management',
+        legal: 'Legal Documents',
       },
       users: {
         title: 'Registered Users',
@@ -552,6 +579,12 @@ export const translations = {
       server: {
         title: 'Server Management',
         inactive: 'This feature is not yet active.',
+      },
+      legal: {
+        title: 'Legal Document Management',
+        upload: 'Upload Document',
+        currentFile: 'Current File',
+        noFile: 'No document uploaded',
       },
     },
     // Suggestions
@@ -590,6 +623,25 @@ export const translations = {
       message: 'We need your support to continue providing this service for free.',
       button: 'Get Support Package',
       close: 'Close',
+    },
+    // Legal
+    legal: {
+      termsOfService: 'Terms of Service',
+      privacyPolicy: 'Privacy Policy',
+      preInformation: 'Pre-Information Form',
+      distanceSales: 'Distance Sales Agreement',
+      acceptTerms: 'I have read and accept',
+      reviewPrivacy: 'You can review our privacy policy',
+    },
+    // Payment
+    payment: {
+      title: 'Support Package',
+      oneTime: 'One-time (This month)',
+      recurring: 'Recurring (Monthly)',
+      payButton: 'Pay',
+      cardNumber: 'Card Number',
+      expiry: 'Expiry',
+      cvv: 'CVV',
     },
     // Common
     common: {

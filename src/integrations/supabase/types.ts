@@ -122,6 +122,33 @@ export type Database = {
         }
         Relationships: []
       }
+      legal_documents: {
+        Row: {
+          document_type: string
+          file_url: string | null
+          id: string
+          original_filename: string | null
+          updated_at: string
+          updated_by: string | null
+        }
+        Insert: {
+          document_type: string
+          file_url?: string | null
+          id?: string
+          original_filename?: string | null
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Update: {
+          document_type?: string
+          file_url?: string | null
+          id?: string
+          original_filename?: string | null
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Relationships: []
+      }
       patients: {
         Row: {
           address: string | null

@@ -5,11 +5,12 @@ import { supabase } from '@/integrations/supabase/client';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { X, Heart } from 'lucide-react';
-import { toast } from 'sonner';
+import { useNavigate } from 'react-router-dom';
 
 export function SupportPrompt() {
   const { user } = useAuth();
   const { t } = useI18n();
+  const navigate = useNavigate();
   const [eligible, setEligible] = useState(false);
   const [collapsed, setCollapsed] = useState(false);
   const [loading, setLoading] = useState(true);
@@ -79,7 +80,7 @@ export function SupportPrompt() {
   };
 
   const handleBuyClick = () => {
-    toast.info(t.settings.subscription.developing);
+    navigate('/payment');
   };
 
   if (loading || !eligible) return null;
