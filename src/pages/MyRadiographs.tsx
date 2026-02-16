@@ -9,6 +9,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/com
 import { Skeleton } from '@/components/ui/skeleton';
 import { toast } from 'sonner';
 import { Upload, Eye, Calendar, Image as ImageIcon } from 'lucide-react';
+import { RadiographThumbnail } from '@/components/RadiographThumbnail';
 import { format } from 'date-fns';
 import { tr, enUS } from 'date-fns/locale';
 import { useDropzone } from 'react-dropzone';
@@ -250,9 +251,12 @@ export default function MyRadiographs() {
                   </div>
                 </CardHeader>
                 <CardContent>
-                  <div className="aspect-video bg-muted rounded flex items-center justify-center">
-                    <ImageIcon className="h-8 w-8 text-muted-foreground/50" />
-                  </div>
+                  <RadiographThumbnail
+                    storagePath={radiograph.storage_path}
+                    analysisStatus={radiograph.analysis_status}
+                    originalFilename={radiograph.original_filename}
+                    className="aspect-video"
+                  />
                   <Button 
                     variant="ghost" 
                     size="sm" 
