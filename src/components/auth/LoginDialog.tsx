@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   Dialog,
@@ -12,6 +12,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { Alert, AlertDescription } from '@/components/ui/alert';
+import { Checkbox } from '@/components/ui/checkbox';
 import { useI18n } from '@/lib/i18n';
 import { useAuth } from '@/hooks/useAuth';
 import { supabase } from '@/integrations/supabase/client';
@@ -41,7 +42,7 @@ interface LoginDialogProps {
 }
 
 export function LoginDialog({ open, onOpenChange, defaultMode = 'login' }: LoginDialogProps) {
-  const { t, brandName } = useI18n();
+  const { t, brandName, language } = useI18n();
   const { signIn, signUp } = useAuth();
   const navigate = useNavigate();
 
@@ -57,6 +58,27 @@ export function LoginDialog({ open, onOpenChange, defaultMode = 'login' }: Login
   const [firstName, setFirstName] = useState('');
   const [lastName, setLastName] = useState('');
   const [role, setRole] = useState<'dentist' | 'patient'>('dentist');
+  const [acceptTerms, setAcceptTerms] = useState(false);
+  const [termsDialog, setTermsDialog] = useState(false);
+  const [privacyDialog, setPrivacyDialog] = useState(false);
+  const [termsUrl, setTermsUrl] = useState<string | null>(null);
+  const [privacyUrl, setPrivacyUrl] = useState<string | null>(null);
+
+  useEffect(() => {
+    const fetchLegalDocs = async () => {
+      const { data } = await supabase
+        .from('legal_documents')
+        .select('*')
+        .in('document_type', ['terms_of_service', 'privacy_policy']);
+      if (data) {
+        for (const doc of data) {
+          if (doc.document_type === 'terms_of_service' && doc.file_url) setTermsUrl(doc.file_url);
+          if (doc.document_type === 'privacy_policy' && doc.file_url) setPrivacyUrl(doc.file_url);
+        }
+      }
+    };
+    fetchLegalDocs();
+  }, []);
 
   const resetForm = () => {
     setEmail('');
@@ -66,6 +88,7 @@ export function LoginDialog({ open, onOpenChange, defaultMode = 'login' }: Login
     setLastName('');
     setError(null);
     setSuccess(null);
+    setAcceptTerms(false);
   };
 
   const handleOpenChange = (newOpen: boolean) => {
@@ -317,7 +340,38 @@ export function LoginDialog({ open, onOpenChange, defaultMode = 'login' }: Login
                 </div>
               </RadioGroup>
             </div>
-            <Button type="submit" className="w-full" disabled={isLoading}>
+            {/* Terms of Service Checkbox */}
+            <div className="space-y-2">
+              <div className="flex items-start space-x-3">
+                <Checkbox
+                  id="dialog-accept-terms"
+                  checked={acceptTerms}
+                  onCheckedChange={(v) => setAcceptTerms(v === true)}
+                />
+                <div className="grid gap-1 leading-none">
+                  <label htmlFor="dialog-accept-terms" className="text-sm cursor-pointer">
+                    <button
+                      type="button"
+                      className="text-primary hover:underline font-medium"
+                      onClick={() => setTermsDialog(true)}
+                    >
+                      {t.legal.termsOfService}
+                    </button>
+                    {' '}{t.legal.acceptTerms}
+                  </label>
+                </div>
+              </div>
+              <p className="text-xs text-muted-foreground ml-7">
+                <button
+                  type="button"
+                  className="text-primary hover:underline"
+                  onClick={() => setPrivacyDialog(true)}
+                >
+                  {t.legal.reviewPrivacy}
+                </button>
+              </p>
+            </div>
+            <Button type="submit" className="w-full" disabled={isLoading || !acceptTerms}>
               {isLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
               {t.auth.signup}
             </Button>
@@ -333,6 +387,50 @@ export function LoginDialog({ open, onOpenChange, defaultMode = 'login' }: Login
             </p>
           </form>
         )}
+
+        {/* Terms of Service Dialog */}
+        <Dialog open={termsDialog} onOpenChange={setTermsDialog}>
+          <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto">
+            <DialogHeader>
+              <DialogTitle>{t.legal.termsOfService}</DialogTitle>
+            </DialogHeader>
+            <div className="prose prose-sm dark:prose-invert">
+              {termsUrl ? (
+                <p className="text-sm text-muted-foreground">
+                  <a href={termsUrl} target="_blank" rel="noopener noreferrer" className="text-primary hover:underline">
+                    {language === 'tr' ? 'Belgeyi indirmek için tıklayın' : 'Click to download document'}
+                  </a>
+                </p>
+              ) : (
+                <p className="text-muted-foreground">
+                  {language === 'tr' ? 'Belge henüz yüklenmemiştir.' : 'Document has not been uploaded yet.'}
+                </p>
+              )}
+            </div>
+          </DialogContent>
+        </Dialog>
+
+        {/* Privacy Policy Dialog */}
+        <Dialog open={privacyDialog} onOpenChange={setPrivacyDialog}>
+          <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto">
+            <DialogHeader>
+              <DialogTitle>{t.legal.privacyPolicy}</DialogTitle>
+            </DialogHeader>
+            <div className="prose prose-sm dark:prose-invert">
+              {privacyUrl ? (
+                <p className="text-sm text-muted-foreground">
+                  <a href={privacyUrl} target="_blank" rel="noopener noreferrer" className="text-primary hover:underline">
+                    {language === 'tr' ? 'Belgeyi indirmek için tıklayın' : 'Click to download document'}
+                  </a>
+                </p>
+              ) : (
+                <p className="text-muted-foreground">
+                  {language === 'tr' ? 'Belge henüz yüklenmemiştir.' : 'Document has not been uploaded yet.'}
+                </p>
+              )}
+            </div>
+          </DialogContent>
+        </Dialog>
 
         {mode === 'forgot' && (
           <form onSubmit={handleForgotPassword} className="space-y-4">
