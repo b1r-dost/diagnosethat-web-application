@@ -192,6 +192,7 @@ export function LoginDialog({ open, onOpenChange, defaultMode = 'login' }: Login
   };
 
   return (
+    <>
     <Dialog open={open} onOpenChange={handleOpenChange}>
       <DialogContent className="sm:max-w-md">
         <DialogHeader className="text-center">
@@ -388,50 +389,6 @@ export function LoginDialog({ open, onOpenChange, defaultMode = 'login' }: Login
           </form>
         )}
 
-        {/* Terms of Service Dialog */}
-        <Dialog open={termsDialog} onOpenChange={setTermsDialog}>
-          <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto">
-            <DialogHeader>
-              <DialogTitle>{t.legal.termsOfService}</DialogTitle>
-            </DialogHeader>
-            <div className="prose prose-sm dark:prose-invert">
-              {termsUrl ? (
-                <p className="text-sm text-muted-foreground">
-                  <a href={termsUrl} target="_blank" rel="noopener noreferrer" className="text-primary hover:underline">
-                    {language === 'tr' ? 'Belgeyi indirmek için tıklayın' : 'Click to download document'}
-                  </a>
-                </p>
-              ) : (
-                <p className="text-muted-foreground">
-                  {language === 'tr' ? 'Belge henüz yüklenmemiştir.' : 'Document has not been uploaded yet.'}
-                </p>
-              )}
-            </div>
-          </DialogContent>
-        </Dialog>
-
-        {/* Privacy Policy Dialog */}
-        <Dialog open={privacyDialog} onOpenChange={setPrivacyDialog}>
-          <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto">
-            <DialogHeader>
-              <DialogTitle>{t.legal.privacyPolicy}</DialogTitle>
-            </DialogHeader>
-            <div className="prose prose-sm dark:prose-invert">
-              {privacyUrl ? (
-                <p className="text-sm text-muted-foreground">
-                  <a href={privacyUrl} target="_blank" rel="noopener noreferrer" className="text-primary hover:underline">
-                    {language === 'tr' ? 'Belgeyi indirmek için tıklayın' : 'Click to download document'}
-                  </a>
-                </p>
-              ) : (
-                <p className="text-muted-foreground">
-                  {language === 'tr' ? 'Belge henüz yüklenmemiştir.' : 'Document has not been uploaded yet.'}
-                </p>
-              )}
-            </div>
-          </DialogContent>
-        </Dialog>
-
         {mode === 'forgot' && (
           <form onSubmit={handleForgotPassword} className="space-y-4">
             <div className="space-y-2">
@@ -462,5 +419,50 @@ export function LoginDialog({ open, onOpenChange, defaultMode = 'login' }: Login
         )}
       </DialogContent>
     </Dialog>
+
+    {/* Terms of Service Dialog */}
+    <Dialog open={termsDialog} onOpenChange={setTermsDialog}>
+      <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto">
+        <DialogHeader>
+          <DialogTitle>{t.legal.termsOfService}</DialogTitle>
+        </DialogHeader>
+        <div className="prose prose-sm dark:prose-invert">
+          {termsUrl ? (
+            <p className="text-sm text-muted-foreground">
+              <a href={termsUrl} target="_blank" rel="noopener noreferrer" className="text-primary hover:underline">
+                {language === 'tr' ? 'Belgeyi indirmek için tıklayın' : 'Click to download document'}
+              </a>
+            </p>
+          ) : (
+            <p className="text-muted-foreground">
+              {language === 'tr' ? 'Belge henüz yüklenmemiştir.' : 'Document has not been uploaded yet.'}
+            </p>
+          )}
+        </div>
+      </DialogContent>
+    </Dialog>
+
+    {/* Privacy Policy Dialog */}
+    <Dialog open={privacyDialog} onOpenChange={setPrivacyDialog}>
+      <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto">
+        <DialogHeader>
+          <DialogTitle>{t.legal.privacyPolicy}</DialogTitle>
+        </DialogHeader>
+        <div className="prose prose-sm dark:prose-invert">
+          {privacyUrl ? (
+            <p className="text-sm text-muted-foreground">
+              <a href={privacyUrl} target="_blank" rel="noopener noreferrer" className="text-primary hover:underline">
+                {language === 'tr' ? 'Belgeyi indirmek için tıklayın' : 'Click to download document'}
+              </a>
+            </p>
+          ) : (
+            <p className="text-muted-foreground">
+              {language === 'tr' ? 'Belge henüz yüklenmemiştir.' : 'Document has not been uploaded yet.'}
+            </p>
+          )}
+        </div>
+      </DialogContent>
+    </Dialog>
+    </>
   );
 }
