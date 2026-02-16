@@ -84,9 +84,9 @@ export function LoginDialog({ open, onOpenChange, defaultMode = 'login' }: Login
     try {
       const validation = loginSchema.safeParse({ email, password });
       if (!validation.success) {
-        if (validation.error.errors.some(e => e.path[0] === 'email')) {
+        if (validation.error.issues.some(e => e.path[0] === 'email')) {
           setError(t.auth.emailInvalid);
-        } else if (validation.error.errors.some(e => e.path[0] === 'password')) {
+        } else if (validation.error.issues.some(e => e.path[0] === 'password')) {
           setError(t.auth.passwordMinLength);
         }
         setIsLoading(false);
@@ -118,7 +118,7 @@ export function LoginDialog({ open, onOpenChange, defaultMode = 'login' }: Login
       });
 
       if (!validation.success) {
-        const errors = validation.error.errors;
+        const errors = validation.error.issues;
         if (errors.some(e => e.path[0] === 'email')) {
           setError(t.auth.emailInvalid);
         } else if (errors.some(e => e.path[0] === 'password')) {
