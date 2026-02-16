@@ -10,7 +10,8 @@ import { toast } from 'sonner';
 export function SupportPrompt() {
   const { user } = useAuth();
   const { t } = useI18n();
-  const [visible, setVisible] = useState(false);
+  const [eligible, setEligible] = useState(false);
+  const [collapsed, setCollapsed] = useState(false);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -28,7 +29,6 @@ export function SupportPrompt() {
       const currentYear = now.getFullYear();
       const todayStr = now.toISOString().split('T')[0];
 
-      // Check active subscription for current month
       const { data: activeSub } = await supabase
         .from('subscriptions')
         .select('id')
@@ -43,7 +43,6 @@ export function SupportPrompt() {
         return;
       }
 
-      // Check if dismissed today
       const { data: dismissed } = await supabase
         .from('dismissed_prompts')
         .select('id')
@@ -53,11 +52,13 @@ export function SupportPrompt() {
         .limit(1);
 
       if (dismissed && dismissed.length > 0) {
+        setEligible(true);
+        setCollapsed(true);
         setLoading(false);
         return;
       }
 
-      setVisible(true);
+      setEligible(true);
     } catch (err) {
       console.error('Error checking support prompt visibility:', err);
     } finally {
@@ -66,7 +67,7 @@ export function SupportPrompt() {
   };
 
   const handleDismiss = async () => {
-    setVisible(false);
+    setCollapsed(true);
     if (!user) return;
 
     const todayStr = new Date().toISOString().split('T')[0];
@@ -78,12 +79,21 @@ export function SupportPrompt() {
   };
 
   const handleBuyClick = () => {
-    toast.info(
-      t.settings.subscription.developing
-    );
+    toast.info(t.settings.subscription.developing);
   };
 
-  if (loading || !visible) return null;
+  if (loading || !eligible) return null;
+
+  if (collapsed) {
+    return (
+      <button
+        onClick={() => setCollapsed(false)}
+        className="fixed right-0 bottom-24 z-50 flex items-center justify-center w-10 h-10 rounded-l-lg bg-primary/10 border border-r-0 border-primary/20 shadow-md transition-all duration-300 hover:w-12 hover:bg-primary/20 group"
+      >
+        <Heart className="h-5 w-5 text-primary transition-transform duration-300 group-hover:scale-110" />
+      </button>
+    );
+  }
 
   return (
     <div className="fixed bottom-4 right-4 z-50 max-w-sm animate-in slide-in-from-bottom-4 fade-in duration-500">
