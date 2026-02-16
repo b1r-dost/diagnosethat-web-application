@@ -25,18 +25,23 @@ class ErrorBoundary extends Component<Props, State> {
 
   render() {
     if (this.state.hasError) {
+      const isTr = navigator.language.startsWith('tr');
       return (
         <div className="min-h-screen flex items-center justify-center bg-background">
           <div className="text-center p-8">
-            <h2 className="text-xl font-bold text-foreground mb-4">Bir hata oluştu</h2>
+            <h2 className="text-xl font-bold text-foreground mb-4">
+              {isTr ? 'Bir hata oluştu' : 'Something went wrong'}
+            </h2>
             <p className="text-muted-foreground mb-4">
-              Sayfa yüklenirken bir sorun oluştu.
+              {isTr
+                ? 'Sayfa yüklenirken bir sorun oluştu.'
+                : 'There was a problem loading the page.'}
             </p>
             <button 
               onClick={() => window.location.reload()}
               className="px-4 py-2 bg-primary text-primary-foreground rounded-md hover:bg-primary/90 transition-colors"
             >
-              Sayfayı Yenile
+              {isTr ? 'Sayfayı Yenile' : 'Refresh Page'}
             </button>
           </div>
         </div>

@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { AnalysisResult, getToothColor, getDiseaseColor } from '@/types/analysis';
+import jsPDF from 'jspdf';
 import { MainLayout } from '@/components/layout/MainLayout';
 import { useI18n } from '@/lib/i18n';
 import { useAuth } from '@/hooks/useAuth';
@@ -61,7 +62,7 @@ interface Finding {
 export default function Analysis() {
   const { id } = useParams<{ id: string }>();
   const { t, language } = useI18n();
-  const { user, isDentist, isPatient } = useAuth();
+  const { user, isDentist, isPatient, profile } = useAuth();
   const navigate = useNavigate();
   const [radiograph, setRadiograph] = useState<Radiograph | null>(null);
   const [imageUrl, setImageUrl] = useState<string | null>(null);
@@ -472,6 +473,189 @@ export default function Analysis() {
     window.print();
   };
 
+  const handleDownloadReport = async () => {
+    if (!radiograph || !canvasRef.current) return;
+
+    try {
+      // Fetch patient info if patient_id exists
+      let patientName = '';
+      if (radiograph.patient_id) {
+        const { data: patient } = await supabase
+          .from('patients')
+          .select('first_name, last_name')
+          .eq('id', radiograph.patient_id)
+          .single();
+        if (patient) {
+          patientName = `${patient.first_name} ${patient.last_name}`;
+        }
+      }
+
+      const { profile, isDentist: isDentistRole } = useAuthRef.current;
+      const clinicName = profile?.institution_name || '';
+      const doctorName = isDentistRole && profile
+        ? `${profile.first_name || ''} ${profile.last_name || ''}`.trim()
+        : '';
+      const brandName = language === 'tr' ? 'TanıYorum' : 'DiagnoseThat';
+
+      const doc = new jsPDF('p', 'mm', 'a4');
+      const pageWidth = doc.internal.pageSize.getWidth();
+      const margin = 15;
+      let y = 20;
+
+      // Header - clinic name
+      doc.setFontSize(18);
+      doc.setFont('helvetica', 'bold');
+      if (clinicName) {
+        doc.text(clinicName, margin, y);
+        y += 8;
+      }
+
+      // Doctor name
+      if (doctorName) {
+        doc.setFontSize(12);
+        doc.setFont('helvetica', 'normal');
+        doc.text(`Dr. ${doctorName}`, margin, y);
+        y += 7;
+      }
+
+      // Date
+      doc.setFontSize(10);
+      doc.setFont('helvetica', 'normal');
+      const dateStr = new Date(radiograph.created_at).toLocaleDateString(
+        language === 'tr' ? 'tr-TR' : 'en-US',
+        { year: 'numeric', month: 'long', day: 'numeric' }
+      );
+      doc.text(`${language === 'tr' ? 'Tarih' : 'Date'}: ${dateStr}`, margin, y);
+      y += 10;
+
+      // Separator
+      doc.setDrawColor(200, 200, 200);
+      doc.line(margin, y, pageWidth - margin, y);
+      y += 8;
+
+      // Patient info
+      if (patientName) {
+        doc.setFontSize(11);
+        doc.setFont('helvetica', 'bold');
+        doc.text(`${language === 'tr' ? 'Hasta' : 'Patient'}: ${patientName}`, margin, y);
+        y += 7;
+      }
+
+      // Filename
+      if (radiograph.original_filename) {
+        doc.setFontSize(9);
+        doc.setFont('helvetica', 'normal');
+        doc.text(`${language === 'tr' ? 'Dosya' : 'File'}: ${radiograph.original_filename}`, margin, y);
+        y += 10;
+      }
+
+      // Canvas image
+      try {
+        const canvas = canvasRef.current;
+        const imgData = canvas.toDataURL('image/jpeg', 0.85);
+        const imgWidth = pageWidth - margin * 2;
+        const imgHeight = (canvas.height / canvas.width) * imgWidth;
+        
+        // Check if image fits on page, otherwise scale down
+        const maxImgHeight = 120;
+        const finalHeight = Math.min(imgHeight, maxImgHeight);
+        const finalWidth = imgHeight > maxImgHeight
+          ? (canvas.width / canvas.height) * finalHeight
+          : imgWidth;
+
+        doc.addImage(imgData, 'JPEG', margin, y, finalWidth, finalHeight);
+        y += finalHeight + 10;
+      } catch (imgErr) {
+        console.error('Could not add image to PDF:', imgErr);
+        y += 5;
+      }
+
+      // Findings table
+      if (editableFindings.length > 0) {
+        // Check if we need a new page
+        if (y > 220) {
+          doc.addPage();
+          y = 20;
+        }
+
+        doc.setFontSize(12);
+        doc.setFont('helvetica', 'bold');
+        doc.text(language === 'tr' ? 'Bulgular' : 'Findings', margin, y);
+        y += 8;
+
+        // Table headers
+        const colWidths = [15, 25, 60, 30, 30];
+        const headers = [
+          language === 'tr' ? 'No' : 'No',
+          language === 'tr' ? 'Diş' : 'Tooth',
+          language === 'tr' ? 'Hastalık' : 'Disease',
+          language === 'tr' ? 'Güven' : 'Conf.',
+          language === 'tr' ? 'Şiddet' : 'Severity',
+        ];
+
+        doc.setFontSize(9);
+        doc.setFont('helvetica', 'bold');
+        doc.setFillColor(240, 240, 240);
+        doc.rect(margin, y - 4, colWidths.reduce((a, b) => a + b, 0), 7, 'F');
+        
+        let x = margin;
+        headers.forEach((header, i) => {
+          doc.text(header, x + 2, y);
+          x += colWidths[i];
+        });
+        y += 7;
+
+        // Table rows
+        doc.setFont('helvetica', 'normal');
+        editableFindings.forEach((finding, index) => {
+          if (y > 275) {
+            doc.addPage();
+            y = 20;
+          }
+
+          x = margin;
+          const rowData = [
+            String(index + 1),
+            finding.tooth_number,
+            finding.condition,
+            `${(finding.confidence * 100).toFixed(0)}%`,
+            finding.severity,
+          ];
+
+          rowData.forEach((cell, i) => {
+            doc.text(cell, x + 2, y);
+            x += colWidths[i];
+          });
+          y += 6;
+        });
+      }
+
+      // Footer
+      const pageHeight = doc.internal.pageSize.getHeight();
+      doc.setFontSize(8);
+      doc.setFont('helvetica', 'italic');
+      doc.setTextColor(150, 150, 150);
+      doc.text(brandName, pageWidth / 2, pageHeight - 10, { align: 'center' });
+
+      // Download
+      const fileName = radiograph.original_filename
+        ? radiograph.original_filename.replace(/\.[^.]+$/, '') + '_report.pdf'
+        : 'analysis_report.pdf';
+      doc.save(fileName);
+
+      toast.success(language === 'tr' ? 'Rapor indirildi!' : 'Report downloaded!');
+    } catch (err) {
+      console.error('Error generating PDF:', err);
+      toast.error(language === 'tr' ? 'Rapor oluşturulamadı' : 'Failed to generate report');
+    }
+  };
+
+  // Ref to access auth context in handleDownloadReport without stale closure
+  const useAuthRef = useRef({ profile: null as any, isDentist });
+  useEffect(() => {
+    useAuthRef.current = { profile, isDentist };
+  }, [profile, isDentist]);
+
   // Editable report functions
   const handleAddRow = () => {
     const newFinding: Finding = {
@@ -570,7 +754,7 @@ export default function Analysis() {
               <Printer className="h-4 w-4 mr-2" />
               {t.analysis.controls.print}
             </Button>
-            <Button variant="outline">
+            <Button variant="outline" onClick={handleDownloadReport}>
               <Download className="h-4 w-4 mr-2" />
               {language === 'tr' ? 'Rapor İndir' : 'Download Report'}
             </Button>
