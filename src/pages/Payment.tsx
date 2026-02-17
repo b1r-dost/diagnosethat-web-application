@@ -196,22 +196,13 @@ export default function Payment() {
             <DialogHeader>
               <DialogTitle>{t.legal.preInformation}</DialogTitle>
             </DialogHeader>
-            <div className="prose prose-sm dark:prose-invert">
-              {preInfoContent ? (
-                <p className="text-sm text-muted-foreground">
-                  {language === 'tr'
-                    ? 'Belge yüklendi. İndirmek için '
-                    : 'Document uploaded. '}
-                  <a href={preInfoContent} target="_blank" rel="noopener noreferrer" className="text-primary hover:underline">
-                    {language === 'tr' ? 'tıklayın' : 'Click to download'}
-                  </a>
-                </p>
-              ) : (
-                <p className="text-muted-foreground">
-                  {language === 'tr' ? 'Belge henüz yüklenmemiştir.' : 'Document has not been uploaded yet.'}
-                </p>
-              )}
-            </div>
+            {preInfoContent ? (
+              <iframe src={preInfoContent} className="w-full h-[60vh] border-0 rounded" title="Pre Information" />
+            ) : (
+              <p className="text-muted-foreground text-sm py-8 text-center">
+                {language === 'tr' ? 'Belge henüz yüklenmemiştir.' : 'Document has not been uploaded yet.'}
+              </p>
+            )}
           </DialogContent>
         </Dialog>
 
@@ -221,22 +212,13 @@ export default function Payment() {
             <DialogHeader>
               <DialogTitle>{t.legal.distanceSales}</DialogTitle>
             </DialogHeader>
-            <div className="prose prose-sm dark:prose-invert">
-              {distanceSalesContent ? (
-                <p className="text-sm text-muted-foreground">
-                  {language === 'tr'
-                    ? 'Belge yüklendi. İndirmek için '
-                    : 'Document uploaded. '}
-                  <a href={distanceSalesContent} target="_blank" rel="noopener noreferrer" className="text-primary hover:underline">
-                    {language === 'tr' ? 'tıklayın' : 'Click to download'}
-                  </a>
-                </p>
-              ) : (
-                <p className="text-muted-foreground">
-                  {language === 'tr' ? 'Belge henüz yüklenmemiştir.' : 'Document has not been uploaded yet.'}
-                </p>
-              )}
-            </div>
+            {distanceSalesContent ? (
+              <iframe src={distanceSalesContent} className="w-full h-[60vh] border-0 rounded" title="Distance Sales" />
+            ) : (
+              <p className="text-muted-foreground text-sm py-8 text-center">
+                {language === 'tr' ? 'Belge henüz yüklenmemiştir.' : 'Document has not been uploaded yet.'}
+              </p>
+            )}
           </DialogContent>
         </Dialog>
       </div>

@@ -449,20 +449,13 @@ export default function AuthPage() {
                 <DialogHeader>
                   <DialogTitle>{t.legal.termsOfService}</DialogTitle>
                 </DialogHeader>
-                <div className="prose prose-sm dark:prose-invert">
-                  {termsUrl ? (
-                    <p className="text-sm text-muted-foreground">
-                      {language === 'tr' ? 'Belge yüklendi. İndirmek için ' : 'Document uploaded. '}
-                      <a href={termsUrl} target="_blank" rel="noopener noreferrer" className="text-primary hover:underline">
-                        {language === 'tr' ? 'tıklayın' : 'Click to download'}
-                      </a>
-                    </p>
-                  ) : (
-                    <p className="text-muted-foreground">
-                      {language === 'tr' ? 'Belge henüz yüklenmemiştir.' : 'Document has not been uploaded yet.'}
-                    </p>
-                  )}
-                </div>
+                {termsUrl ? (
+                  <iframe src={termsUrl} className="w-full h-[60vh] border-0 rounded" title="Terms of Service" />
+                ) : (
+                  <p className="text-muted-foreground text-sm py-8 text-center">
+                    {language === 'tr' ? 'Belge henüz yüklenmemiştir.' : 'Document has not been uploaded yet.'}
+                  </p>
+                )}
               </DialogContent>
             </Dialog>
 
@@ -472,20 +465,13 @@ export default function AuthPage() {
                 <DialogHeader>
                   <DialogTitle>{t.legal.privacyPolicy}</DialogTitle>
                 </DialogHeader>
-                <div className="prose prose-sm dark:prose-invert">
-                  {privacyUrl ? (
-                    <p className="text-sm text-muted-foreground">
-                      {language === 'tr' ? 'Belge yüklendi. İndirmek için ' : 'Document uploaded. '}
-                      <a href={privacyUrl} target="_blank" rel="noopener noreferrer" className="text-primary hover:underline">
-                        {language === 'tr' ? 'tıklayın' : 'Click to download'}
-                      </a>
-                    </p>
-                  ) : (
-                    <p className="text-muted-foreground">
-                      {language === 'tr' ? 'Belge henüz yüklenmemiştir.' : 'Document has not been uploaded yet.'}
-                    </p>
-                  )}
-                </div>
+                {privacyUrl ? (
+                  <iframe src={privacyUrl} className="w-full h-[60vh] border-0 rounded" title="Privacy Policy" />
+                ) : (
+                  <p className="text-muted-foreground text-sm py-8 text-center">
+                    {language === 'tr' ? 'Belge henüz yüklenmemiştir.' : 'Document has not been uploaded yet.'}
+                  </p>
+                )}
               </DialogContent>
             </Dialog>
 
