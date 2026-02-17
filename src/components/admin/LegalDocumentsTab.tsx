@@ -154,7 +154,7 @@ export function LegalDocumentsTab() {
               <div>
                 <input
                   type="file"
-                  accept=".docx,.doc,.pdf"
+                  accept=".pdf"
                   id={`upload-${type}`}
                   className="hidden"
                   onChange={(e) => {
