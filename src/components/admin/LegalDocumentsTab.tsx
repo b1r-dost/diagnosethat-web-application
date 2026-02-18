@@ -5,7 +5,8 @@ import { supabase } from '@/integrations/supabase/client';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Upload, FileText, Check, Loader2 } from 'lucide-react';
+import { Textarea } from '@/components/ui/textarea';
+import { FileText, Check, Loader2, Save, ChevronDown, ChevronUp } from 'lucide-react';
 import { toast } from 'sonner';
 import { format } from 'date-fns';
 
@@ -14,6 +15,7 @@ interface LegalDoc {
   document_type: string;
   file_url: string | null;
   original_filename: string | null;
+  content: string | null;
   updated_at: string;
 }
 
@@ -24,12 +26,16 @@ const DOCUMENT_TYPES = [
   'distance_sales',
 ] as const;
 
+const PLACEHOLDERS = ['{{AD}}', '{{SOYAD}}', '{{AD_SOYAD}}', '{{EMAIL}}', '{{TARIH}}'];
+
 export function LegalDocumentsTab() {
   const { user } = useAuth();
   const { t, language } = useI18n();
   const [docs, setDocs] = useState<LegalDoc[]>([]);
   const [loading, setLoading] = useState(true);
-  const [uploading, setUploading] = useState<string | null>(null);
+  const [saving, setSaving] = useState<string | null>(null);
+  const [expanded, setExpanded] = useState<string | null>(null);
+  const [contentDrafts, setContentDrafts] = useState<Record<string, string>>({});
 
   useEffect(() => {
     fetchDocs();
@@ -39,7 +45,14 @@ export function LegalDocumentsTab() {
     const { data } = await supabase
       .from('legal_documents')
       .select('*');
-    setDocs(data || []);
+    const docsData = (data || []) as LegalDoc[];
+    setDocs(docsData);
+    // Initialize drafts from existing content
+    const drafts: Record<string, string> = {};
+    for (const doc of docsData) {
+      drafts[doc.document_type] = doc.content || '';
+    }
+    setContentDrafts(prev => ({ ...drafts, ...prev }));
     setLoading(false);
   };
 
@@ -55,58 +68,54 @@ export function LegalDocumentsTab() {
 
   const getDoc = (type: string) => docs.find(d => d.document_type === type);
 
-  const handleUpload = async (type: string, file: File) => {
+  const handleSave = async (type: string) => {
     if (!user) return;
-    setUploading(type);
+    setSaving(type);
 
     try {
-      const ext = file.name.split('.').pop();
-      const filePath = `${type}.${ext}`;
-
-      // Upload to storage (overwrite)
-      const { error: uploadError } = await supabase.storage
-        .from('legal-documents')
-        .upload(filePath, file, { upsert: true });
-
-      if (uploadError) throw uploadError;
-
-      const { data: urlData } = supabase.storage
-        .from('legal-documents')
-        .getPublicUrl(filePath);
-
-      const fileUrl = urlData.publicUrl;
-
-      // Upsert in legal_documents table
+      const content = contentDrafts[type] || '';
       const existing = getDoc(type);
+
       if (existing) {
-        await supabase
+        const { error } = await supabase
           .from('legal_documents')
           .update({
-            file_url: fileUrl,
-            original_filename: file.name,
+            content,
             updated_at: new Date().toISOString(),
             updated_by: user.id,
           })
           .eq('id', existing.id);
+        if (error) throw error;
       } else {
-        await supabase
+        const { error } = await supabase
           .from('legal_documents')
           .insert({
             document_type: type,
-            file_url: fileUrl,
-            original_filename: file.name,
+            content,
             updated_by: user.id,
           });
+        if (error) throw error;
       }
 
-      toast.success(language === 'tr' ? 'Belge yüklendi' : 'Document uploaded');
+      toast.success(language === 'tr' ? 'Belge kaydedildi' : 'Document saved');
       await fetchDocs();
     } catch (err: any) {
-      console.error('Upload error:', err);
+      console.error('Save error:', err);
       toast.error(err.message || t.common.error);
     } finally {
-      setUploading(null);
+      setSaving(null);
     }
+  };
+
+  const toggleExpand = (type: string) => {
+    setExpanded(prev => prev === type ? null : type);
+  };
+
+  const insertPlaceholder = (type: string, placeholder: string) => {
+    setContentDrafts(prev => ({
+      ...prev,
+      [type]: (prev[type] || '') + placeholder,
+    }));
   };
 
   if (loading) {
@@ -123,60 +132,95 @@ export function LegalDocumentsTab() {
         <CardTitle>{t.admin.legal.title}</CardTitle>
         <CardDescription>
           {language === 'tr'
-            ? 'Kullanıcı sözleşmesi, gizlilik politikası ve ödeme sözleşmelerini yönetin'
-            : 'Manage terms of service, privacy policy and payment agreements'}
+            ? 'Hukuki belgeleri HTML şablon olarak düzenleyin. Yer tutucular gösterim anında kullanıcı verisiyle doldurulur.'
+            : 'Edit legal documents as HTML templates. Placeholders are filled with user data at display time.'}
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
         {DOCUMENT_TYPES.map(type => {
           const doc = getDoc(type);
+          const isOpen = expanded === type;
+          const hasContent = !!(doc?.content || contentDrafts[type]);
+
           return (
-            <div key={type} className="flex items-center justify-between p-4 border rounded-lg">
-              <div className="flex items-center gap-3">
-                <FileText className="h-5 w-5 text-muted-foreground" />
-                <div>
-                  <p className="font-medium text-sm">{getDocLabel(type)}</p>
-                  {doc?.original_filename ? (
-                    <div className="flex items-center gap-2 mt-1">
-                      <Badge variant="secondary" className="text-xs">
-                        <Check className="h-3 w-3 mr-1" />
-                        {doc.original_filename}
-                      </Badge>
-                      <span className="text-xs text-muted-foreground">
-                        {format(new Date(doc.updated_at), 'dd.MM.yyyy HH:mm')}
-                      </span>
-                    </div>
-                  ) : (
-                    <p className="text-xs text-muted-foreground mt-1">{t.admin.legal.noFile}</p>
-                  )}
+            <div key={type} className="border rounded-lg overflow-hidden">
+              {/* Header row */}
+              <button
+                type="button"
+                className="w-full flex items-center justify-between p-4 hover:bg-muted/50 transition-colors text-left"
+                onClick={() => toggleExpand(type)}
+              >
+                <div className="flex items-center gap-3">
+                  <FileText className="h-5 w-5 text-muted-foreground flex-shrink-0" />
+                  <div>
+                    <p className="font-medium text-sm">{getDocLabel(type)}</p>
+                    {doc?.updated_at && hasContent ? (
+                      <div className="flex items-center gap-2 mt-1">
+                        <Badge variant="secondary" className="text-xs">
+                          <Check className="h-3 w-3 mr-1" />
+                          {language === 'tr' ? 'İçerik mevcut' : 'Content available'}
+                        </Badge>
+                        <span className="text-xs text-muted-foreground">
+                          {format(new Date(doc.updated_at), 'dd.MM.yyyy HH:mm')}
+                        </span>
+                      </div>
+                    ) : (
+                      <p className="text-xs text-muted-foreground mt-1">{t.admin.legal.noFile}</p>
+                    )}
+                  </div>
                 </div>
-              </div>
-              <div>
-                <input
-                  type="file"
-                  accept=".pdf"
-                  id={`upload-${type}`}
-                  className="hidden"
-                  onChange={(e) => {
-                    const file = e.target.files?.[0];
-                    if (file) handleUpload(type, file);
-                    e.target.value = '';
-                  }}
-                />
-                <Button
-                  variant="outline"
-                  size="sm"
-                  disabled={uploading === type}
-                  onClick={() => document.getElementById(`upload-${type}`)?.click()}
-                >
-                  {uploading === type ? (
-                    <Loader2 className="h-4 w-4 animate-spin mr-1" />
-                  ) : (
-                    <Upload className="h-4 w-4 mr-1" />
-                  )}
-                  {t.admin.legal.upload}
-                </Button>
-              </div>
+                {isOpen ? <ChevronUp className="h-4 w-4 text-muted-foreground" /> : <ChevronDown className="h-4 w-4 text-muted-foreground" />}
+              </button>
+
+              {/* Editor */}
+              {isOpen && (
+                <div className="border-t p-4 space-y-3 bg-muted/20">
+                  {/* Placeholder chips */}
+                  <div>
+                    <p className="text-xs text-muted-foreground mb-2">
+                      {language === 'tr' ? 'Kullanılabilir yer tutucular (tıklayarak ekleyin):' : 'Available placeholders (click to insert):'}
+                    </p>
+                    <div className="flex flex-wrap gap-2">
+                      {PLACEHOLDERS.map(ph => (
+                        <button
+                          key={ph}
+                          type="button"
+                          onClick={() => insertPlaceholder(type, ph)}
+                          className="px-2 py-1 text-xs font-mono bg-primary/10 text-primary border border-primary/20 rounded hover:bg-primary/20 transition-colors"
+                        >
+                          {ph}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  <Textarea
+                    value={contentDrafts[type] || ''}
+                    onChange={(e) => setContentDrafts(prev => ({ ...prev, [type]: e.target.value }))}
+                    placeholder={
+                      language === 'tr'
+                        ? 'Belge içeriğini buraya girin. HTML etiketleri kullanabilirsiniz (<p>, <b>, <br>, <ul>, <li> vb.)'
+                        : 'Enter document content here. You can use HTML tags (<p>, <b>, <br>, <ul>, <li> etc.)'
+                    }
+                    className="min-h-[300px] font-mono text-sm"
+                  />
+
+                  <div className="flex justify-end">
+                    <Button
+                      size="sm"
+                      disabled={saving === type}
+                      onClick={() => handleSave(type)}
+                    >
+                      {saving === type ? (
+                        <Loader2 className="h-4 w-4 animate-spin mr-1" />
+                      ) : (
+                        <Save className="h-4 w-4 mr-1" />
+                      )}
+                      {t.common.save}
+                    </Button>
+                  </div>
+                </div>
+              )}
             </div>
           );
         })}
