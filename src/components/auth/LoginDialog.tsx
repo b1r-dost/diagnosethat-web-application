@@ -61,8 +61,8 @@ export function LoginDialog({ open, onOpenChange, defaultMode = 'login' }: Login
   const [acceptTerms, setAcceptTerms] = useState(false);
   const [termsDialog, setTermsDialog] = useState(false);
   const [privacyDialog, setPrivacyDialog] = useState(false);
-  const [termsUrl, setTermsUrl] = useState<string | null>(null);
-  const [privacyUrl, setPrivacyUrl] = useState<string | null>(null);
+  const [termsContent, setTermsContent] = useState<string | null>(null);
+  const [privacyContent, setPrivacyContent] = useState<string | null>(null);
 
   useEffect(() => {
     const fetchLegalDocs = async () => {
@@ -72,8 +72,9 @@ export function LoginDialog({ open, onOpenChange, defaultMode = 'login' }: Login
         .in('document_type', ['terms_of_service', 'privacy_policy']);
       if (data) {
         for (const doc of data) {
-          if (doc.document_type === 'terms_of_service' && doc.file_url) setTermsUrl(doc.file_url);
-          if (doc.document_type === 'privacy_policy' && doc.file_url) setPrivacyUrl(doc.file_url);
+          const d = doc as { document_type: string; content?: string | null };
+          if (d.document_type === 'terms_of_service' && d.content) setTermsContent(d.content);
+          if (d.document_type === 'privacy_policy' && d.content) setPrivacyContent(d.content);
         }
       }
     };
@@ -426,11 +427,14 @@ export function LoginDialog({ open, onOpenChange, defaultMode = 'login' }: Login
         <DialogHeader>
           <DialogTitle>{t.legal.termsOfService}</DialogTitle>
         </DialogHeader>
-        {termsUrl ? (
-          <iframe src={termsUrl} className="w-full h-[60vh] border-0 rounded" title="Terms of Service" />
+        {termsContent ? (
+          <div
+            className="prose prose-sm max-w-none text-foreground"
+            dangerouslySetInnerHTML={{ __html: termsContent }}
+          />
         ) : (
           <p className="text-muted-foreground text-sm py-8 text-center">
-            {language === 'tr' ? 'Belge henüz yüklenmemiştir.' : 'Document has not been uploaded yet.'}
+            {language === 'tr' ? 'Belge henüz eklenmemiştir.' : 'Document has not been added yet.'}
           </p>
         )}
       </DialogContent>
@@ -442,11 +446,14 @@ export function LoginDialog({ open, onOpenChange, defaultMode = 'login' }: Login
         <DialogHeader>
           <DialogTitle>{t.legal.privacyPolicy}</DialogTitle>
         </DialogHeader>
-        {privacyUrl ? (
-          <iframe src={privacyUrl} className="w-full h-[60vh] border-0 rounded" title="Privacy Policy" />
+        {privacyContent ? (
+          <div
+            className="prose prose-sm max-w-none text-foreground"
+            dangerouslySetInnerHTML={{ __html: privacyContent }}
+          />
         ) : (
           <p className="text-muted-foreground text-sm py-8 text-center">
-            {language === 'tr' ? 'Belge henüz yüklenmemiştir.' : 'Document has not been uploaded yet.'}
+            {language === 'tr' ? 'Belge henüz eklenmemiştir.' : 'Document has not been added yet.'}
           </p>
         )}
       </DialogContent>

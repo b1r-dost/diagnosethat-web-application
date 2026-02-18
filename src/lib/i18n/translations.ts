@@ -248,7 +248,9 @@ export const translations = {
         title: 'Sözleşme Yönetimi',
         upload: 'Belge Yükle',
         currentFile: 'Mevcut Dosya',
-        noFile: 'Belge yüklenmemiş',
+        noFile: 'Belge henüz eklenmemiştir',
+        noContent: 'Belge henüz eklenmemiştir.',
+        save: 'Kaydet',
       },
     },
     // Suggestions
@@ -584,7 +586,9 @@ export const translations = {
         title: 'Legal Document Management',
         upload: 'Upload Document',
         currentFile: 'Current File',
-        noFile: 'No document uploaded',
+        noFile: 'No document added yet',
+        noContent: 'No document has been added yet.',
+        save: 'Save',
       },
     },
     // Suggestions

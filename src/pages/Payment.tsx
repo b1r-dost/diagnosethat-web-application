@@ -33,9 +33,35 @@ export default function Payment() {
     }
   }, [user, authLoading, navigate]);
 
+  const [profile, setProfile] = useState<{ first_name: string | null; last_name: string | null } | null>(null);
+
   useEffect(() => {
     fetchLegalDocs();
-  }, []);
+    if (user) fetchProfile();
+  }, [user]);
+
+  const fetchProfile = async () => {
+    if (!user) return;
+    const { data } = await supabase
+      .from('profiles')
+      .select('first_name, last_name')
+      .eq('user_id', user.id)
+      .single();
+    if (data) setProfile(data);
+  };
+
+  const fillPlaceholders = (content: string) => {
+    const today = new Date();
+    const dateStr = `${String(today.getDate()).padStart(2, '0')}.${String(today.getMonth() + 1).padStart(2, '0')}.${today.getFullYear()}`;
+    const firstName = profile?.first_name || '';
+    const lastName = profile?.last_name || '';
+    return content
+      .replace(/\{\{AD\}\}/g, firstName)
+      .replace(/\{\{SOYAD\}\}/g, lastName)
+      .replace(/\{\{AD_SOYAD\}\}/g, `${firstName} ${lastName}`.trim())
+      .replace(/\{\{EMAIL\}\}/g, user?.email || '')
+      .replace(/\{\{TARIH\}\}/g, dateStr);
+  };
 
   const fetchLegalDocs = async () => {
     const { data } = await supabase
@@ -45,10 +71,11 @@ export default function Payment() {
 
     if (data) {
       for (const doc of data) {
-        if (doc.document_type === 'pre_information' && doc.file_url) {
-          setPreInfoContent(doc.file_url);
-        } else if (doc.document_type === 'distance_sales' && doc.file_url) {
-          setDistanceSalesContent(doc.file_url);
+        const d = doc as { document_type: string; content?: string | null };
+        if (d.document_type === 'pre_information' && d.content) {
+          setPreInfoContent(d.content);
+        } else if (d.document_type === 'distance_sales' && d.content) {
+          setDistanceSalesContent(d.content);
         }
       }
     }
@@ -197,10 +224,13 @@ export default function Payment() {
               <DialogTitle>{t.legal.preInformation}</DialogTitle>
             </DialogHeader>
             {preInfoContent ? (
-              <iframe src={preInfoContent} className="w-full h-[60vh] border-0 rounded" title="Pre Information" />
+              <div
+                className="prose prose-sm max-w-none text-foreground"
+                dangerouslySetInnerHTML={{ __html: fillPlaceholders(preInfoContent) }}
+              />
             ) : (
               <p className="text-muted-foreground text-sm py-8 text-center">
-                {language === 'tr' ? 'Belge henüz yüklenmemiştir.' : 'Document has not been uploaded yet.'}
+                {language === 'tr' ? 'Belge henüz eklenmemiştir.' : 'Document has not been added yet.'}
               </p>
             )}
           </DialogContent>
@@ -213,10 +243,13 @@ export default function Payment() {
               <DialogTitle>{t.legal.distanceSales}</DialogTitle>
             </DialogHeader>
             {distanceSalesContent ? (
-              <iframe src={distanceSalesContent} className="w-full h-[60vh] border-0 rounded" title="Distance Sales" />
+              <div
+                className="prose prose-sm max-w-none text-foreground"
+                dangerouslySetInnerHTML={{ __html: fillPlaceholders(distanceSalesContent) }}
+              />
             ) : (
               <p className="text-muted-foreground text-sm py-8 text-center">
-                {language === 'tr' ? 'Belge henüz yüklenmemiştir.' : 'Document has not been uploaded yet.'}
+                {language === 'tr' ? 'Belge henüz eklenmemiştir.' : 'Document has not been added yet.'}
               </p>
             )}
           </DialogContent>

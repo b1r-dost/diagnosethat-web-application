@@ -124,6 +124,7 @@ export type Database = {
       }
       legal_documents: {
         Row: {
+          content: string | null
           document_type: string
           file_url: string | null
           id: string
@@ -132,6 +133,7 @@ export type Database = {
           updated_by: string | null
         }
         Insert: {
+          content?: string | null
           document_type: string
           file_url?: string | null
           id?: string
@@ -140,6 +142,7 @@ export type Database = {
           updated_by?: string | null
         }
         Update: {
+          content?: string | null
           document_type?: string
           file_url?: string | null
           id?: string
