@@ -20,6 +20,7 @@ import {
   FileText
 } from 'lucide-react';
 import { LegalDocumentsTab } from '@/components/admin/LegalDocumentsTab';
+import { RoadmapTab } from '@/components/admin/RoadmapTab';
 import {
   Table,
   TableBody,
@@ -292,18 +293,7 @@ export default function Admin() {
 
           {/* Roadmap Tab */}
           <TabsContent value="roadmap">
-            <Card>
-              <CardHeader>
-                <CardTitle>{t.admin.roadmap.title}</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <p className="text-muted-foreground text-center py-8">
-                  {language === 'tr' 
-                    ? 'Yol haritası yönetimi yakında eklenecek' 
-                    : 'Roadmap management coming soon'}
-                </p>
-              </CardContent>
-            </Card>
+            <RoadmapTab />
           </TabsContent>
 
           {/* Server Tab */}
