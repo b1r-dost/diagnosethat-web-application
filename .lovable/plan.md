@@ -1,17 +1,52 @@
 
-# Tüm Hukuki Belgeler: HTML Şablon Sistemine Geçiş
+# Yol Haritası Yönetimi — Admin Paneli
 
 ## Mevcut Durum
 
-Şu an 4 belge türü de PDF dosyası yüklenerek iframe ile gösteriliyor:
-- `terms_of_service` (Kullanıcı Sözleşmesi) — Auth.tsx ve LoginDialog.tsx
-- `privacy_policy` (Gizlilik Politikası) — Auth.tsx ve LoginDialog.tsx
-- `pre_information` (Ön Bilgilendirme Formu) — Payment.tsx
-- `distance_sales` (Mesafeli Satış Sözleşmesi) — Payment.tsx
+- `roadmap_items` tablosu veritabanında zaten mevcut (title_tr, title_en, description_tr, description_en, display_order, is_active, icon alanları mevcut)
+- RLS politikaları hazır: adminler tam yetki, herkes aktif öğeleri görebilir
+- Ana sayfadaki `Roadmap` bileşeni zaten bu tablodan veri çekiyor
+- Admin panelindeki Yol Haritası sekmesi yalnızca "yakında eklenecek" yazıyor — işlevsel değil
 
-## Hedef
+---
 
-PDF yükleme tamamen kaldırılacak. Admin panelinde her belge için zengin bir metin editörü sunulacak. Metin içinde `{{AD}}`, `{{SOYAD}}`, `{{AD_SOYAD}}`, `{{EMAIL}}`, `{{TARIH}}` gibi yer tutucular kullanılabilecek. Gösterim anında bunlar gerçek kullanıcı verileriyle doldurulacak.
+## Yapılacaklar
+
+### 1. Yeni bileşen: `src/components/admin/RoadmapTab.tsx`
+
+Tam CRUD arayüzü içerecek:
+
+```text
+┌───────────────────────────────────────────────────────┐
+│  Yol Haritası Yönetimi          [+ Yeni Öğe Ekle]    │
+├───────────────────────────────────────────────────────┤
+│  #  │ Türkçe Başlık  │ İngilizce Başlık │ Durum │ İşlem
+│  1  │ Özellik A      │ Feature A        │ ✅    │ ✏️ 🗑️
+│  2  │ Özellik B      │ Feature B        │ ✅    │ ✏️ 🗑️
+│  3  │ Özellik C      │ Feature C        │ ⬜    │ ✏️ 🗑️
+├───────────────────────────────────────────────────────┤
+│  Yeni Öğe / Düzenleme Formu                          │
+│  Türkçe Başlık: [____________]                        │
+│  İngilizce Başlık: [____________]                     │
+│  Türkçe Açıklama: [____________]                      │
+│  İngilizce Açıklama: [____________]                   │
+│  Sıra: [__]  Aktif: [toggle]                         │
+│                              [İptal] [Kaydet]         │
+└───────────────────────────────────────────────────────┘
+```
+
+**Özellikler:**
+- Mevcut öğeleri listele (display_order sırasıyla)
+- Yeni öğe ekleme formu
+- Mevcut öğeyi düzenleme (satıra tıklayınca form açılır)
+- Öğeyi silme (onay dialog'u)
+- Aktif/pasif toggle (checkbox ile)
+- Türkçe ve İngilizce başlık + açıklama
+- Sıra (display_order) numarası
+
+### 2. Admin.tsx güncelleme
+
+Roadmap sekmesindeki "yakında eklenecek" metni kaldırılır, `<RoadmapTab />` bileşeni eklenir.
 
 ---
 
@@ -19,79 +54,19 @@ PDF yükleme tamamen kaldırılacak. Admin panelinde her belge için zengin bir 
 
 | Dosya | Değişiklik |
 |---|---|
-| Supabase migration | `legal_documents` tablosuna `content text` sütunu ekle |
-| `src/components/admin/LegalDocumentsTab.tsx` | PDF yükleme arayüzü tamamen kaldırılır, her belge için `Textarea` editörü eklenir |
-| `src/pages/Auth.tsx` | iframe kaldırılır, `content` HTML olarak render edilir |
-| `src/components/auth/LoginDialog.tsx` | iframe kaldırılır, `content` HTML olarak render edilir |
-| `src/pages/Payment.tsx` | iframe kaldırılır, profil çekilir, `{{AD_SOYAD}}` yer tutucuları doldurulur |
-| `src/lib/i18n/translations.ts` | Admin paneli için yeni çeviri anahtarları eklenir |
+| `src/components/admin/RoadmapTab.tsx` | Yeni dosya — tam CRUD yönetim bileşeni |
+| `src/pages/Admin.tsx` | Roadmap tab içeriği `<RoadmapTab />` ile değiştirilir |
 
----
-
-## Veritabanı Değişikliği
-
-`legal_documents` tablosuna tek bir sütun eklenir:
-
-```sql
-ALTER TABLE legal_documents ADD COLUMN content text;
-```
-
-Mevcut `file_url` ve `original_filename` sütunları silinmez, geriye dönük uyumluluk için yerinde bırakılır (boş kalacak artık).
-
----
-
-## Admin Paneli — Yeni Arayüz
-
-Her belge için:
-
-```text
-┌─────────────────────────────────────────────────────┐
-│  📄 Kullanıcı Sözleşmesi              [Son güncelleme: 18.02.2026]
-│                                                     │
-│  Kullanılabilir yer tutucular:                      │
-│  {{AD}}  {{SOYAD}}  {{AD_SOYAD}}  {{EMAIL}}  {{TARIH}}
-│                                                     │
-│  ┌─────────────────────────────────────────────┐   │
-│  │ <Textarea — HTML metin editörü>              │   │
-│  │                                              │   │
-│  │                                              │   │
-│  └─────────────────────────────────────────────┘   │
-│                              [Kaydet]               │
-└─────────────────────────────────────────────────────┘
-```
-
-Kaydedilince `content` sütununa yazılır. Kaydetme başarılı olursa toast gösterilir.
-
----
-
-## Yer Tutucu Sistemi
-
-| Yer Tutucu | Değer |
-|---|---|
-| `{{AD}}` | Kullanıcının adı |
-| `{{SOYAD}}` | Kullanıcının soyadı |
-| `{{AD_SOYAD}}` | Ad ve soyad birleşik |
-| `{{EMAIL}}` | Kullanıcının e-posta adresi |
-| `{{TARIH}}` | Belgenin açıldığı tarih (GG.AA.YYYY) |
-
-Yer tutucular basit `string.replace()` ile doldurulur, ek kütüphane gerekmez.
-
----
-
-## Gösterim Mantığı (Tüm Dialoglar)
-
-```text
-content sütunu dolu mu?
-  ├── Evet → Yer tutucuları doldur → <div dangerouslySetInnerHTML> ile render et
-  └── Hayır → "Belge henüz eklenmemiştir." mesajı göster
-```
+Veritabanı değişikliği **gerekmez** — tablo ve RLS politikaları zaten hazır.
 
 ---
 
 ## Teknik Detaylar
 
-- Kullanıcı profili (`first_name`, `last_name`) Payment.tsx'te `supabase.from('profiles').select(...)` ile çekilir; `user.email` ise zaten `useAuth()` içinde mevcut.
-- Auth.tsx ve LoginDialog.tsx'te kayıt formundaki `firstName`/`lastName` state değerleri direkt kullanılır (henüz kayıt olmadığından profil çekmeye gerek yok).
-- `dangerouslySetInnerHTML` güvenle kullanılabilir çünkü içerik yalnızca admin tarafından girilmektedir.
-- Dialog içeriği kaydırılabilir (`overflow-y-auto`) olacak, sabit yükseklik (`max-h-[70vh]`) korunacak.
-- Belge tipi başına tek kayıt tutulacak (`upsert` mantığı korunuyor).
+- Supabase'den `roadmap_items` tablosu okunur, `display_order` ile sıralanır
+- Ekleme: `supabase.from('roadmap_items').insert(...)`
+- Güncelleme: `supabase.from('roadmap_items').update(...).eq('id', id)`
+- Silme: `supabase.from('roadmap_items').delete().eq('id', id)`
+- Form gösterimi: Liste ile aynı sayfada, bir "Ekle / Düzenle" formu açılır kapanır
+- Silme işleminde `AlertDialog` (onay dialog'u) kullanılır
+- Ana sayfadaki `Roadmap` bileşeni değişmez — aynı tablodan zaten okuyacak
