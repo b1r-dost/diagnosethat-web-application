@@ -50,12 +50,17 @@ export default function Payment() {
     if (data) setProfile(data);
   };
 
+  const prepareContent = (content: string): string => {
+    const hasHtmlTags = /<[a-z][\s\S]*>/i.test(content);
+    return hasHtmlTags ? content : content.replace(/\n/g, '<br>');
+  };
+
   const fillPlaceholders = (content: string) => {
     const today = new Date();
     const dateStr = `${String(today.getDate()).padStart(2, '0')}.${String(today.getMonth() + 1).padStart(2, '0')}.${today.getFullYear()}`;
     const firstName = profile?.first_name || '';
     const lastName = profile?.last_name || '';
-    return content
+    return prepareContent(content)
       .replace(/\{\{AD\}\}/g, firstName)
       .replace(/\{\{SOYAD\}\}/g, lastName)
       .replace(/\{\{AD_SOYAD\}\}/g, `${firstName} ${lastName}`.trim())

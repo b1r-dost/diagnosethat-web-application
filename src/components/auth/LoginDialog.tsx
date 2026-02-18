@@ -81,6 +81,22 @@ export function LoginDialog({ open, onOpenChange, defaultMode = 'login' }: Login
     fetchLegalDocs();
   }, []);
 
+  const prepareContent = (content: string): string => {
+    const hasHtmlTags = /<[a-z][\s\S]*>/i.test(content);
+    return hasHtmlTags ? content : content.replace(/\n/g, '<br>');
+  };
+
+  const fillPlaceholders = (content: string): string => {
+    const today = new Date();
+    const dateStr = `${String(today.getDate()).padStart(2, '0')}.${String(today.getMonth() + 1).padStart(2, '0')}.${today.getFullYear()}`;
+    return prepareContent(content)
+      .replace(/\{\{AD\}\}/g, firstName)
+      .replace(/\{\{SOYAD\}\}/g, lastName)
+      .replace(/\{\{AD_SOYAD\}\}/g, `${firstName} ${lastName}`.trim())
+      .replace(/\{\{EMAIL\}\}/g, email)
+      .replace(/\{\{TARIH\}\}/g, dateStr);
+  };
+
   const resetForm = () => {
     setEmail('');
     setPassword('');
@@ -430,7 +446,7 @@ export function LoginDialog({ open, onOpenChange, defaultMode = 'login' }: Login
         {termsContent ? (
           <div
             className="prose prose-sm max-w-none text-foreground"
-            dangerouslySetInnerHTML={{ __html: termsContent }}
+            dangerouslySetInnerHTML={{ __html: fillPlaceholders(termsContent) }}
           />
         ) : (
           <p className="text-muted-foreground text-sm py-8 text-center">
@@ -449,7 +465,7 @@ export function LoginDialog({ open, onOpenChange, defaultMode = 'login' }: Login
         {privacyContent ? (
           <div
             className="prose prose-sm max-w-none text-foreground"
-            dangerouslySetInnerHTML={{ __html: privacyContent }}
+            dangerouslySetInnerHTML={{ __html: fillPlaceholders(privacyContent) }}
           />
         ) : (
           <p className="text-muted-foreground text-sm py-8 text-center">
