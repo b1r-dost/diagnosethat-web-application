@@ -1,44 +1,97 @@
 
+# Tüm Hukuki Belgeler: HTML Şablon Sistemine Geçiş
 
-# PDF Belge Goruntulemesi ve Build Hatasi Duzeltmesi
+## Mevcut Durum
 
-## 1. Belge dialoglarini PDF iframe ile gosterme
+Şu an 4 belge türü de PDF dosyası yüklenerek iframe ile gösteriliyor:
+- `terms_of_service` (Kullanıcı Sözleşmesi) — Auth.tsx ve LoginDialog.tsx
+- `privacy_policy` (Gizlilik Politikası) — Auth.tsx ve LoginDialog.tsx
+- `pre_information` (Ön Bilgilendirme Formu) — Payment.tsx
+- `distance_sales` (Mesafeli Satış Sözleşmesi) — Payment.tsx
 
-Admin panelinden yuklenen PDF dosyalari, kayit ve odeme sayfalarindaki dialoglarda dogrudan tarayicinin yerlesik PDF goruntuleyicisi ile gosterilecek. Google Docs Viewer gibi harici servislere gerek kalmayacak.
+## Hedef
 
-### Degisecek dosyalar ve degisiklikler:
+PDF yükleme tamamen kaldırılacak. Admin panelinde her belge için zengin bir metin editörü sunulacak. Metin içinde `{{AD}}`, `{{SOYAD}}`, `{{AD_SOYAD}}`, `{{EMAIL}}`, `{{TARIH}}` gibi yer tutucular kullanılabilecek. Gösterim anında bunlar gerçek kullanıcı verileriyle doldurulacak.
 
-| Dosya | Degisiklik |
-|-------|-----------|
-| `src/components/auth/LoginDialog.tsx` | Sozlesme dialoglarinda indirme linki yerine `<iframe src={fileUrl}>` ile PDF icerik gosterimi |
-| `src/pages/Auth.tsx` | Ayni degisiklik - iframe ile PDF gosterimi |
-| `src/pages/Payment.tsx` | Ayni degisiklik - iframe ile PDF gosterimi |
-| `src/components/admin/LegalDocumentsTab.tsx` | Dosya kabul tipini `.pdf` olarak degistirme (`accept=".pdf"`) |
-| `src/components/ui/chart.tsx` | recharts v3 tip uyumsuzlugu duzeltmesi |
+---
 
-### Dialog icerigi
+## Değişecek Dosyalar
 
-Mevcut indirme linki yerine:
+| Dosya | Değişiklik |
+|---|---|
+| Supabase migration | `legal_documents` tablosuna `content text` sütunu ekle |
+| `src/components/admin/LegalDocumentsTab.tsx` | PDF yükleme arayüzü tamamen kaldırılır, her belge için `Textarea` editörü eklenir |
+| `src/pages/Auth.tsx` | iframe kaldırılır, `content` HTML olarak render edilir |
+| `src/components/auth/LoginDialog.tsx` | iframe kaldırılır, `content` HTML olarak render edilir |
+| `src/pages/Payment.tsx` | iframe kaldırılır, profil çekilir, `{{AD_SOYAD}}` yer tutucuları doldurulur |
+| `src/lib/i18n/translations.ts` | Admin paneli için yeni çeviri anahtarları eklenir |
 
-```text
-+------------------------------------------+
-|  [X]  Kullanici Sozlesmesi               |
-|------------------------------------------|
-|                                          |
-|  <iframe src="dosya.pdf"                 |
-|   class="w-full h-[60vh] border-0" />    |
-|                                          |
-+------------------------------------------+
+---
+
+## Veritabanı Değişikliği
+
+`legal_documents` tablosuna tek bir sütun eklenir:
+
+```sql
+ALTER TABLE legal_documents ADD COLUMN content text;
 ```
 
-Belge yuklenmemisse: "Belge henuz yuklenmemistir." mesaji gosterilecek.
+Mevcut `file_url` ve `original_filename` sütunları silinmez, geriye dönük uyumluluk için yerinde bırakılır (boş kalacak artık).
 
-### Teknik detay
-- iframe src dogrudan Supabase storage public URL'si olacak
-- Tarayicilar PDF'i native olarak renderlar, ek kutuphane gerekmez
-- Admin panelinde dosya kabul tipi `.docx,.doc,.pdf` yerine sadece `.pdf` olacak
+---
 
-## 2. chart.tsx build hatasi duzeltmesi
+## Admin Paneli — Yeni Arayüz
 
-`recharts` v3 ile gelen tip degisiklikleri nedeniyle `ChartTooltipContent` ve `ChartLegendContent` bilesenlerinde TypeScript hatalari olusuyor. `payload`, `label` ve `verticalAlign` props'larina `any` type assertion uygulanacak.
+Her belge için:
 
+```text
+┌─────────────────────────────────────────────────────┐
+│  📄 Kullanıcı Sözleşmesi              [Son güncelleme: 18.02.2026]
+│                                                     │
+│  Kullanılabilir yer tutucular:                      │
+│  {{AD}}  {{SOYAD}}  {{AD_SOYAD}}  {{EMAIL}}  {{TARIH}}
+│                                                     │
+│  ┌─────────────────────────────────────────────┐   │
+│  │ <Textarea — HTML metin editörü>              │   │
+│  │                                              │   │
+│  │                                              │   │
+│  └─────────────────────────────────────────────┘   │
+│                              [Kaydet]               │
+└─────────────────────────────────────────────────────┘
+```
+
+Kaydedilince `content` sütununa yazılır. Kaydetme başarılı olursa toast gösterilir.
+
+---
+
+## Yer Tutucu Sistemi
+
+| Yer Tutucu | Değer |
+|---|---|
+| `{{AD}}` | Kullanıcının adı |
+| `{{SOYAD}}` | Kullanıcının soyadı |
+| `{{AD_SOYAD}}` | Ad ve soyad birleşik |
+| `{{EMAIL}}` | Kullanıcının e-posta adresi |
+| `{{TARIH}}` | Belgenin açıldığı tarih (GG.AA.YYYY) |
+
+Yer tutucular basit `string.replace()` ile doldurulur, ek kütüphane gerekmez.
+
+---
+
+## Gösterim Mantığı (Tüm Dialoglar)
+
+```text
+content sütunu dolu mu?
+  ├── Evet → Yer tutucuları doldur → <div dangerouslySetInnerHTML> ile render et
+  └── Hayır → "Belge henüz eklenmemiştir." mesajı göster
+```
+
+---
+
+## Teknik Detaylar
+
+- Kullanıcı profili (`first_name`, `last_name`) Payment.tsx'te `supabase.from('profiles').select(...)` ile çekilir; `user.email` ise zaten `useAuth()` içinde mevcut.
+- Auth.tsx ve LoginDialog.tsx'te kayıt formundaki `firstName`/`lastName` state değerleri direkt kullanılır (henüz kayıt olmadığından profil çekmeye gerek yok).
+- `dangerouslySetInnerHTML` güvenle kullanılabilir çünkü içerik yalnızca admin tarafından girilmektedir.
+- Dialog içeriği kaydırılabilir (`overflow-y-auto`) olacak, sabit yükseklik (`max-h-[70vh]`) korunacak.
+- Belge tipi başına tek kayıt tutulacak (`upsert` mantığı korunuyor).
